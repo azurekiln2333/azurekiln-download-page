@@ -382,11 +382,22 @@ async function createShortUrl(longUrl, customId, password = "") {
     const shortId = shortUrl.startsWith(SHORT_URL_PUBLIC_PREFIX)
       ? shortUrl.slice(SHORT_URL_PUBLIC_PREFIX.length)
       : shortUrl.replace(/^https?:\/\/[^/]+\/sl\//, "");
-    return shortId ? { shortId, shortUrl: shortUrl || `${SHORT_URL_PUBLIC_PREFIX}${shortId}` } : null;
+    return shortId ? { shortId, shortUrl: normalizeShortUrl(shortUrl || shortId) } : null;
   } catch (error) {
     console.warn("Create short URL failed:", error.message);
     return null;
   }
+}
+
+function normalizeShortUrl(value) {
+  const shortUrl = String(value || "").trim();
+  if (!shortUrl) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(shortUrl)) {
+    return shortUrl;
+  }
+  return `${SHORT_URL_PUBLIC_PREFIX}${shortUrl.replace(/^\/+/, "")}`;
 }
 
 function toNullableDate(value) {
@@ -552,7 +563,7 @@ function toPublicFile(row, includeLinks, links = []) {
     updatedAt: toIsoDate(row.updated_at),
     expiresAt: toIsoDate(row.expires_at),
     shortUrlId: row.short_url_id || "",
-    shortUrl: row.short_url || "",
+    shortUrl: normalizeShortUrl(row.short_url),
     storageCount: Number(row.storage_count || links.length || 0),
     storageLinks: includeLinks ? links : []
   };
