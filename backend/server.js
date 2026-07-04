@@ -16,7 +16,7 @@ const FILE_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01
 const LEGACY_LINK_BASE_URL = process.env.LEGACY_LINK_BASE_URL || "https://azurekiln.cn/link.php";
 const PUBLIC_DOWNLOAD_BASE_URL = process.env.PUBLIC_DOWNLOAD_BASE_URL || "https://dl.azurekiln.cn";
 const SHORT_URL_API_URL = process.env.SHORT_URL_API_URL || "https://azurekiln.cn/sl/api.php";
-const SHORT_URL_PUBLIC_PREFIX = process.env.SHORT_URL_PUBLIC_PREFIX || "https://azurekiln.cn/sl/";
+const SHORT_URL_PUBLIC_PREFIX = process.env.SHORT_URL_PUBLIC_PREFIX || "https://azurekiln.cn/";
 const SHORT_URL_CUSTOM_PREFIX = process.env.SHORT_URL_CUSTOM_PREFIX || "dl";
 
 let pool = null;
@@ -379,9 +379,7 @@ async function createShortUrl(longUrl, customId, password = "") {
       return null;
     }
     const shortUrl = String(payload.shorturl || "");
-    const shortId = shortUrl.startsWith(SHORT_URL_PUBLIC_PREFIX)
-      ? shortUrl.slice(SHORT_URL_PUBLIC_PREFIX.length)
-      : shortUrl.replace(/^https?:\/\/[^/]+\/sl\//, "");
+    const shortId = extractShortId(shortUrl || customId);
     return shortId ? { shortId, shortUrl: normalizeShortUrl(shortUrl || shortId) } : null;
   } catch (error) {
     console.warn("Create short URL failed:", error.message);
@@ -389,15 +387,24 @@ async function createShortUrl(longUrl, customId, password = "") {
   }
 }
 
-function normalizeShortUrl(value) {
-  const shortUrl = String(value || "").trim();
-  if (!shortUrl) {
+function extractShortId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
     return "";
   }
-  if (/^https?:\/\//i.test(shortUrl)) {
-    return shortUrl;
+  return raw
+    .replace(/^https?:\/\/[^/]+\/sl\//i, "")
+    .replace(/^https?:\/\/[^/]+\//i, "")
+    .replace(/^\/?sl\//i, "")
+    .replace(/^\/+/, "");
+}
+
+function normalizeShortUrl(value) {
+  const shortId = extractShortId(value);
+  if (!shortId) {
+    return "";
   }
-  return `${SHORT_URL_PUBLIC_PREFIX}${shortUrl.replace(/^\/+/, "")}`;
+  return `${SHORT_URL_PUBLIC_PREFIX}${shortId}`;
 }
 
 function toNullableDate(value) {
