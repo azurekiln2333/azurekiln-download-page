@@ -942,7 +942,7 @@ function renderStorageGroupCard(group) {
             group.extractCode
               ? `<button class="extract-code-button" type="button" data-copy-value="${escapeHtml(group.extractCode)}">
                   <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
-                  <span>复制提取码</span>
+                  <span>复制提取码：${escapeHtml(group.extractCode)}</span>
                 </button>`
               : ""
           }
