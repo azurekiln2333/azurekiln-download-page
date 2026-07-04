@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "tertiary-fixed": "#ffdbcc",
+                    "surface": "#faf9fe",
+                    "secondary-container": "#6664e4",
+                    "on-error": "#ffffff",
+                    "on-secondary-container": "#fffbff",
+                    "secondary": "#4c4aca",
+                    "surface-container-highest": "#e3e2e7",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed-dim": "#c2c1ff",
+                    "on-background": "#1a1b1f",
+                    "surface-variant": "#e3e2e7",
+                    "inverse-surface": "#2f3034",
+                    "primary": "#0058bc",
+                    "surface-container-low": "#f4f3f8",
+                    "error": "#ba1a1a",
+                    "surface-dim": "#dad9df",
+                    "on-primary": "#ffffff",
+                    "on-secondary-fixed": "#0c006a",
+                    "outline": "#717786",
+                    "tertiary": "#9e3d00",
+                    "surface-container": "#eeedf3",
+                    "inverse-primary": "#adc6ff",
+                    "primary-fixed-dim": "#adc6ff",
+                    "on-tertiary-fixed": "#351000",
+                    "on-secondary-fixed-variant": "#3631b4",
+                    "surface-tint": "#005bc1",
+                    "on-surface-variant": "#414755",
+                    "on-primary-fixed": "#001a41",
+                    "inverse-on-surface": "#f1f0f5",
+                    "primary-fixed": "#d8e2ff",
+                    "on-primary-fixed-variant": "#004493",
+                    "surface-container-high": "#e9e7ed",
+                    "primary-container": "#0070eb",
+                    "background": "#faf9fe",
+                    "tertiary-fixed-dim": "#ffb595",
+                    "surface-container-lowest": "#ffffff",
+                    "on-primary-container": "#fefcff",
+                    "outline-variant": "#c1c6d7",
+                    "tertiary-container": "#c64f00",
+                    "on-surface": "#1a1b1f",
+                    "surface-bright": "#faf9fe",
+                    "on-tertiary-container": "#fffbff",
+                    "secondary-fixed": "#e2dfff",
+                    "on-tertiary-fixed-variant": "#7c2e00",
+                    "error-container": "#ffdad6"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-md": "24px",
+                    "gutter": "24px",
+                    "margin-mobile": "20px",
+                    "container-max": "1200px",
+                    "margin-desktop": "64px",
+                    "stack-lg": "48px",
+                    "stack-sm": "12px",
+                    "base": "8px"
+            },
+            "fontFamily": {
+                    "label-xs": ["Hanken Grotesk"],
+                    "headline-lg": ["Hanken Grotesk"],
+                    "display-lg": ["Hanken Grotesk"],
+                    "body-md": ["Hanken Grotesk"],
+                    "headline-lg-mobile": ["Hanken Grotesk"],
+                    "body-lg": ["Hanken Grotesk"],
+                    "label-sm": ["Hanken Grotesk"],
+                    "title-md": ["Hanken Grotesk"]
+            },
+            "fontSize": {
+                    "label-xs": ["12px", {"lineHeight": "16px", "letterSpacing": "0.03em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "label-sm": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                    "title-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #F2F2F7;
+            font-family: 'Hanken Grotesk', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .file-card-shadow {
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .file-card-hover:hover {
+            box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-surface">
+<!-- Top Navigation (Shell suppressed but using TopAppBar logic for identity) -->
+<header class="w-full top-0 bg-surface-container-lowest shadow-sm z-10">
+<div class="flex justify-between items-center px-6 md:px-margin-desktop py-4 max-w-container-max mx-auto">
+<div class="flex items-center gap-2">
+<span class="text-title-md font-title-md font-bold text-primary">SecureShare</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex-grow flex items-center justify-center px-margin-mobile">
+<!-- Content Area: Center aligned, 6-column equivalent on desktop -->
+<div class="w-full max-w-[480px] py-stack-lg">
+<!-- Security Card -->
+<div class="bg-surface-container-lowest rounded-xl p-8 md:p-10 file-card-shadow transition-all duration-300">
+<!-- Security Icon -->
+<div class="flex justify-center mb-6">
+<div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+<span class="material-symbols-outlined !text-[40px]" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+</div>
+<!-- Text Header -->
+<div class="text-center mb-8">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-2">请输入提取码以访问文件</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">此文件受密码保护，请输入由分享者提供的密码。</p>
+</div>
+<!-- Password Form -->
+<form class="space-y-6" id="access-form">
+<div class="relative group">
+<label class="sr-only" for="password">提取码</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline" data-icon="key">key</span>
+<input class="w-full pl-12 pr-12 py-4 bg-surface-container border-2 border-transparent rounded-lg font-body-lg text-body-lg focus:outline-none focus:border-primary transition-all duration-200 placeholder:text-outline-variant" id="password" name="password" placeholder="输入 4-6 位提取码" required="" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors" id="toggle-password" type="button">
+<span class="material-symbols-outlined" data-icon="visibility" id="eye-icon">visibility</span>
+</button>
+</div>
+</div>
+<button class="w-full bg-primary-container hover:bg-primary text-on-primary-container font-title-md text-title-md py-4 rounded-lg shadow-sm hover:shadow-md active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2" type="submit">
+<span>验证并进入</span>
+<span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</form>
+<!-- Support Link -->
+<div class="mt-8 text-center">
+<a class="font-label-sm text-label-sm text-primary hover:underline transition-all duration-200 decoration-primary inline-flex items-center gap-1" href="#">
+<span class="material-symbols-outlined !text-[16px]" data-icon="contact_support">contact_support</span>
+                        联系支持
+                    </a>
+</div>
+</div>
+<!-- Contextual Decorative Element (Subtle) -->
+<div class="mt-8 flex flex-col items-center opacity-40">
+<div class="flex items-center gap-3 mb-2">
+<span class="material-symbols-outlined !text-sm" data-icon="shield_lock">shield_lock</span>
+<span class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-widest">End-to-End Encryption Enabled</span>
+</div>
+<div class="w-24 h-[1px] bg-outline-variant"></div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="w-full bg-surface-dim py-stack-md px-margin-desktop">
+<div class="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-label-sm text-label-sm text-on-surface-variant">© 2024 SecureShare Distribution. All rights reserved.</span>
+<div class="flex gap-6">
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-all duration-200 hover:underline decoration-primary" href="#">Terms of Service</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-all duration-200 hover:underline decoration-primary" href="#">Privacy Policy</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-all duration-200 hover:underline decoration-primary" href="#">Security Standards</a>
+</div>
+</div>
+</footer>
+<script>
+        // Password Visibility Toggle
+        const toggleBtn = document.getElementById('toggle-password');
+        const passwordInput = document.getElementById('password');
+        const eyeIcon = document.getElementById('eye-icon');
+
+        toggleBtn.addEventListener('click', () => {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            eyeIcon.textContent = type === 'password' ? 'visibility' : 'visibility_off';
+        });
+
+        // Simple Form Interactivity
+        const form = document.getElementById('access-form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = form.querySelector('button[type="submit"]');
+            const originalContent = btn.innerHTML;
+            
+            // Loading state
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" data-icon="progress_activity">progress_activity</span> 验证中...';
+            btn.disabled = true;
+            btn.classList.add('opacity-80');
+
+            setTimeout(() => {
+                // Mock success/failure
+                const val = passwordInput.value;
+                if(val.length < 4) {
+                    btn.innerHTML = '验证失败';
+                    btn.classList.replace('bg-primary-container', 'bg-error');
+                    btn.classList.replace('text-on-primary-container', 'text-on-error');
+                    
+                    setTimeout(() => {
+                        btn.innerHTML = originalContent;
+                        btn.classList.replace('bg-error', 'bg-primary-container');
+                        btn.classList.replace('text-on-error', 'text-on-primary-container');
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-80');
+                    }, 2000);
+                } else {
+                    btn.innerHTML = '<span class="material-symbols-outlined" data-icon="check_circle">check_circle</span> 验证成功';
+                    btn.classList.replace('bg-primary-container', 'bg-secondary');
+                    // Redirect simulation
+                    console.log("Access Granted");
+                }
+            }, 1200);
+        });
+
+        // Handle focus states for accessibility
+        passwordInput.addEventListener('focus', () => {
+            passwordInput.parentElement.parentElement.classList.add('scale-[1.01]');
+        });
+        passwordInput.addEventListener('blur', () => {
+            passwordInput.parentElement.parentElement.classList.remove('scale-[1.01]');
+        });
+    </script>
+</body></html>
