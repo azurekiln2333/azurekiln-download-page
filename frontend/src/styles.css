@@ -1059,6 +1059,31 @@ a {
   font-weight: 700;
 }
 
+.extract-code-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 88, 188, 0.08);
+  color: var(--primary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.extract-code-button:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.extract-code-button .material-symbols-outlined {
+  font-size: 16px;
+}
+
 .file-card__links {
   display: flex;
   flex-wrap: wrap;

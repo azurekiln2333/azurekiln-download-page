@@ -937,8 +937,15 @@ function renderStorageGroupCard(group) {
           <p>${group.links.length > 1 ? `${group.links.length} 个链接` : escapeHtml(group.links[0]?.note || "分享链接")}</p>
         </div>
         <div class="file-card__meta">
-          <span>${escapeHtml(group.storageKey)}</span>
-          ${group.extractCode ? `<span>提取码 ${escapeHtml(group.extractCode)}</span>` : ""}
+          <span class="sr-only">${escapeHtml(group.storageKey)}</span>
+          ${
+            group.extractCode
+              ? `<button class="extract-code-button" type="button" data-copy-value="${escapeHtml(group.extractCode)}">
+                  <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
+                  <span>复制提取码</span>
+                </button>`
+              : ""
+          }
         </div>
       </div>
       <div class="file-card__links">
