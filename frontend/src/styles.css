@@ -1275,7 +1275,7 @@ a {
 
   .download-sidebar {
     position: static;
-    grid-row: auto;
+    order: -1;
   }
 
   .download-help__item {
