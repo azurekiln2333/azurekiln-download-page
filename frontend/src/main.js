@@ -9,6 +9,7 @@ const FILE_ID = params.get("file") || params.get("share");
 const AUTO_ACCESS_CODE = params.get("pwd") || params.get("code");
 const LEGACY_LINK_CODE = getLegacyLinkCode();
 const tokenKey = `azurekilnshare:${FILE_ID}:token`;
+let topbarScrollBound = false;
 
 const root = document.getElementById("app");
 const state = {
@@ -153,7 +154,7 @@ function renderShell(mainContent, options = {}) {
   const centered = options.centered ? " app-main--centered" : "";
   root.innerHTML = `
     <div class="app-shell">
-      <header class="topbar">
+      <header class="topbar topbar--top">
         <div class="topbar__inner">
           <a class="brand" href="/" aria-label="AzureKilnShare">
             <span class="brand__mark material-symbols-outlined" aria-hidden="true">shield</span>
@@ -182,6 +183,24 @@ function renderShell(mainContent, options = {}) {
       </footer>
     </div>
   `;
+  setupTopbarScrollState();
+}
+
+function setupTopbarScrollState() {
+  updateTopbarScrollState();
+  if (topbarScrollBound) {
+    return;
+  }
+  topbarScrollBound = true;
+  window.addEventListener("scroll", updateTopbarScrollState, { passive: true });
+}
+
+function updateTopbarScrollState() {
+  const topbar = document.querySelector(".topbar");
+  if (!topbar) {
+    return;
+  }
+  topbar.classList.toggle("topbar--top", window.scrollY <= 4);
 }
 
 function renderLoading() {
@@ -975,7 +994,7 @@ function renderStorageGroupCard(group) {
         </div>
         <div class="file-card__title">
           <h3 title="${escapeHtml(group.name)}">${escapeHtml(group.name)}</h3>
-          <p>${group.links.length > 1 ? `${group.links.length} 个链接` : escapeHtml(group.links[0]?.note || "分享链接")}</p>
+          <p>${group.links.length} 个链接</p>
         </div>
         <div class="file-card__meta">
           <span class="sr-only">${escapeHtml(group.storageKey)}</span>
