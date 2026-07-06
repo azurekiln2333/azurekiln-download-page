@@ -787,53 +787,95 @@ function renderDownloadPage() {
             ${file.protected ? `<span class="chip"><span class="material-symbols-outlined" aria-hidden="true">lock_person</span>受保护</span>` : ""}
           </div>
           <p>${escapeHtml(file.description || "")}</p>
-          <div class="share-copy-actions">
-            <button class="copy-button" type="button" data-copy-value="${escapeHtml(longShareUrl)}">
-              <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
-              <span>复制长链接</span>
-            </button>
-            <button class="copy-button" type="button" data-copy-value="${escapeHtml(shortShareUrl)}" ${shortShareUrl ? "" : "disabled"}>
-              <span class="material-symbols-outlined" aria-hidden="true">link</span>
-              <span>${shortShareUrl ? "复制短链接" : "短链接未生成"}</span>
-            </button>
-          </div>
         </div>
       </section>
 
-      <section class="download-help">
-        <div class="download-help__item">
-          <span class="material-symbols-outlined" aria-hidden="true">report</span>
-          <div>
-            <strong>遇到下载链接失效？</strong>
-            <p>发送帖子链接并说明哪条下载链接失效。</p>
+      <div class="download-content">
+        <section class="section-block section-block--primary">
+          <div class="section-heading">
+            <h2><span class="material-symbols-outlined" aria-hidden="true">cloud_download</span>存储链接</h2>
+            <span>${availableLinks.length} 个可用链接</span>
           </div>
-          <a class="help-button" href="${escapeHtml(invalidLinkMailto)}">
-            <span class="material-symbols-outlined" aria-hidden="true">mail</span>
-            <span>邮件反馈</span>
-          </a>
-        </div>
-        <div class="download-help__item">
-          <span class="material-symbols-outlined" aria-hidden="true">verified</span>
-          <div>
-            <strong>文件下载好了，如何获取文件校验值？</strong>
-            <p>使用校验工具计算文件 Hash。</p>
+          <div class="file-grid">
+            ${storageGroups.map(renderStorageGroupCard).join("")}
           </div>
-          <a class="help-button" href="${HASH_CHECK_TOOL_URL}" target="_blank" rel="noopener noreferrer">
-            <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
-            <span>传送门</span>
-          </a>
-        </div>
-      </section>
+        </section>
 
-      <section class="section-block">
-        <div class="section-heading">
-          <h2><span class="material-symbols-outlined" aria-hidden="true">cloud_download</span>存储链接</h2>
-          <span>${availableLinks.length} 个可用链接</span>
-        </div>
-        <div class="file-grid">
-          ${storageGroups.map(renderStorageGroupCard).join("")}
-        </div>
-      </section>
+        <aside class="download-sidebar">
+          <section class="side-panel">
+            <div class="side-panel__heading">
+              <h2><span class="material-symbols-outlined" aria-hidden="true">ios_share</span>分享</h2>
+            </div>
+            <div class="share-copy-actions share-copy-actions--stacked">
+              <button class="copy-button" type="button" data-copy-value="${escapeHtml(longShareUrl)}">
+                <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
+                <span>复制长链接</span>
+              </button>
+              <button class="copy-button" type="button" data-copy-value="${escapeHtml(shortShareUrl)}" ${shortShareUrl ? "" : "disabled"}>
+                <span class="material-symbols-outlined" aria-hidden="true">link</span>
+                <span>${shortShareUrl ? "复制短链接" : "短链接未生成"}</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="side-panel">
+            <div class="side-panel__heading">
+              <h2><span class="material-symbols-outlined" aria-hidden="true">info</span>文件信息</h2>
+            </div>
+            <dl class="detail-list">
+              <div>
+                <dt>文件名</dt>
+                <dd>${escapeHtml(file.name || file.title)}</dd>
+              </div>
+              <div>
+                <dt>文件大小</dt>
+                <dd>${escapeHtml(file.sizeLabel || formatBytes(file.sizeBytes))}</dd>
+              </div>
+              <div>
+                <dt>更新时间</dt>
+                <dd>${formatDate(file.updatedAt)}</dd>
+              </div>
+              <div>
+                <dt>过期时间</dt>
+                <dd>${formatDate(file.expiresAt)}</dd>
+              </div>
+              <div>
+                <dt>访问状态</dt>
+                <dd>${file.protected ? "提取码保护" : "公开访问"}</dd>
+              </div>
+              <div>
+                <dt>可用网盘</dt>
+                <dd>${availableLinks.length} / ${links.length}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="download-help">
+            <div class="download-help__item">
+              <span class="material-symbols-outlined" aria-hidden="true">report</span>
+              <div>
+                <strong>遇到下载链接失效？</strong>
+                <p>发送帖子链接并说明哪条下载链接失效。</p>
+              </div>
+              <a class="help-button" href="${escapeHtml(invalidLinkMailto)}">
+                <span class="material-symbols-outlined" aria-hidden="true">mail</span>
+                <span>邮件反馈</span>
+              </a>
+            </div>
+            <div class="download-help__item">
+              <span class="material-symbols-outlined" aria-hidden="true">verified</span>
+              <div>
+                <strong>文件下载好了，如何获取文件校验值？</strong>
+                <p>使用校验工具计算文件 Hash。</p>
+              </div>
+              <a class="help-button" href="${HASH_CHECK_TOOL_URL}" target="_blank" rel="noopener noreferrer">
+                <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+                <span>传送门</span>
+              </a>
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
   `);
 
