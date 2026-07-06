@@ -444,14 +444,13 @@ a {
 
 .file-summary-card {
   padding: 28px;
-  border: 1px solid var(--surface-container);
+  border: 1px solid var(--outline-variant);
   border-radius: 12px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 20px;
   align-items: center;
   background: var(--surface-container-lowest);
-  box-shadow: var(--shadow-1);
 }
 
 .file-summary-card__icon {
