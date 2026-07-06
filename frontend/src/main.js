@@ -794,7 +794,6 @@ function renderDownloadPage() {
         <section class="section-block section-block--primary">
           <div class="section-heading">
             <h2><span class="material-symbols-outlined" aria-hidden="true">cloud_download</span>存储链接</h2>
-            <span>${availableLinks.length} 个可用链接</span>
           </div>
           <div class="file-grid">
             ${storageGroups.map(renderStorageGroupCard).join("")}
