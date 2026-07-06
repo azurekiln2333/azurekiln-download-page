@@ -970,14 +970,10 @@ function groupStorageLinks(links) {
         storageKey: key,
         name: link.name,
         icon: link.icon,
-        extractCode: link.extractCode || "",
         links: []
       });
     }
     const group = groups.get(key);
-    if (!group.extractCode && link.extractCode) {
-      group.extractCode = link.extractCode;
-    }
     group.links.push(link);
   }
   return Array.from(groups.values());
@@ -996,17 +992,7 @@ function renderStorageGroupCard(group) {
           <h3 title="${escapeHtml(group.name)}">${escapeHtml(group.name)}</h3>
           <p>${group.links.length} 个链接</p>
         </div>
-        <div class="file-card__meta">
-          <span class="sr-only">${escapeHtml(group.storageKey)}</span>
-          ${
-            group.extractCode
-              ? `<button class="extract-code-button" type="button" data-copy-value="${escapeHtml(group.extractCode)}">
-                  <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
-                  <span>复制提取码：${escapeHtml(group.extractCode)}</span>
-                </button>`
-              : ""
-          }
-        </div>
+        <span class="sr-only">${escapeHtml(group.storageKey)}</span>
       </div>
       <div class="file-card__links">
         ${group.links.map(renderStorageLinkButton).join("")}
@@ -1019,10 +1005,20 @@ function renderStorageLinkButton(link) {
   const available = Boolean(link.url);
   const label = link.note || "打开";
   return `
-    <button class="file-card__button" type="button" data-open-link="${escapeHtml(link.id)}" ${available ? "" : "disabled"}>
-      <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
-      <span>${escapeHtml(available ? label : "未配置")}</span>
-    </button>
+    <div class="file-card__link-row">
+      <button class="file-card__button" type="button" data-open-link="${escapeHtml(link.id)}" ${available ? "" : "disabled"}>
+        <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+        <span>${escapeHtml(available ? label : "未配置")}</span>
+      </button>
+      ${
+        link.extractCode
+          ? `<button class="extract-code-button" type="button" data-copy-value="${escapeHtml(link.extractCode)}">
+              <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
+              <span>提取码 ${escapeHtml(link.extractCode)}</span>
+            </button>`
+          : ""
+      }
+    </div>
   `;
 }
 
