@@ -835,17 +835,17 @@ function renderDownloadPage() {
                 <dt>更新时间</dt>
                 <dd>${formatDate(file.updatedAt)}</dd>
               </div>
+              ${
+                file.expiresAt
+                  ? `<div>
+                      <dt>过期时间</dt>
+                      <dd>${formatDate(file.expiresAt)}</dd>
+                    </div>`
+                  : ""
+              }
               <div>
-                <dt>过期时间</dt>
-                <dd>${formatDate(file.expiresAt)}</dd>
-              </div>
-              <div>
-                <dt>访问状态</dt>
-                <dd>${file.protected ? "提取码保护" : "公开访问"}</dd>
-              </div>
-              <div>
-                <dt>可用网盘</dt>
-                <dd>${availableLinks.length} / ${links.length}</dd>
+                <dt>链接数</dt>
+                <dd>${availableLinks.length}</dd>
               </div>
             </dl>
           </section>
