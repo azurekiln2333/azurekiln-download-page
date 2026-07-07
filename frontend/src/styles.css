@@ -1178,11 +1178,13 @@ a {
 }
 
 .file-card__links {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .file-card__link-row {
+  flex: 1 0 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
@@ -1201,6 +1203,10 @@ a {
 .file-card__button:hover:not(:disabled) {
   background: var(--primary);
   color: var(--on-primary);
+}
+
+.file-card__button--plain {
+  flex: 1 1 128px;
 }
 
 .file-card--disabled {

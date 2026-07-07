@@ -1004,20 +1004,25 @@ function renderStorageGroupCard(group) {
 function renderStorageLinkButton(link) {
   const available = Boolean(link.url);
   const label = link.note || "打开";
+  if (!link.extractCode) {
+    return `
+      <button class="file-card__button file-card__button--plain" type="button" data-open-link="${escapeHtml(link.id)}" ${available ? "" : "disabled"}>
+        <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+        <span>${escapeHtml(available ? label : "未配置")}</span>
+      </button>
+    `;
+  }
+
   return `
     <div class="file-card__link-row">
       <button class="file-card__button" type="button" data-open-link="${escapeHtml(link.id)}" ${available ? "" : "disabled"}>
         <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
         <span>${escapeHtml(available ? label : "未配置")}</span>
       </button>
-      ${
-        link.extractCode
-          ? `<button class="extract-code-button" type="button" data-copy-value="${escapeHtml(link.extractCode)}">
-              <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
-              <span>提取码 ${escapeHtml(link.extractCode)}</span>
-            </button>`
-          : ""
-      }
+      <button class="extract-code-button" type="button" data-copy-value="${escapeHtml(link.extractCode)}">
+        <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
+        <span>提取码 ${escapeHtml(link.extractCode)}</span>
+      </button>
     </div>
   `;
 }
