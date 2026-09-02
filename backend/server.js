@@ -1270,29 +1270,41 @@ async function handleApi(req, res, requestUrl) {
       return true;
     }
 
-    if (segments[2] === "files" && segments[3] && !segments[4]) {
-      if (req.method === "GET") {
-        sendJson(res, 200, { file: await getAdminFile(segments[3]) });
+    if (segments[2] === "files") {
+      if (!segments[3]) {
+        if (req.method !== "GET") {
+          throw new HttpError(405, "请求方法不支持");
+        }
+        sendJson(res, 200, { files: await listAdminFiles() });
         return true;
       }
-      if (req.method === "PUT") {
-        sendJson(res, 200, { file: await updateAdminFile(segments[3], await readJsonBody(req)) });
-        return true;
-      }
-      if (req.method === "DELETE") {
-        await deleteAdminFile(segments[3]);
-        sendJson(res, 200, { ok: true });
-        return true;
-      }
-      throw new HttpError(405, "请求方法不支持");
-    }
 
-    if (segments[2] === "files" && segments[3] && segments[4] === "links") {
-      if (req.method !== "POST") {
+      if (!segments[4]) {
+        if (req.method === "GET") {
+          sendJson(res, 200, { file: await getAdminFile(segments[3]) });
+          return true;
+        }
+        if (req.method === "PUT") {
+          sendJson(res, 200, { file: await updateAdminFile(segments[3], await readJsonBody(req)) });
+          return true;
+        }
+        if (req.method === "DELETE") {
+          await deleteAdminFile(segments[3]);
+          sendJson(res, 200, { ok: true });
+          return true;
+        }
         throw new HttpError(405, "请求方法不支持");
       }
-      sendJson(res, 201, { link: await addAdminLink(segments[3], await readJsonBody(req)) });
-      return true;
+
+      if (segments[4] === "links") {
+        if (req.method !== "POST") {
+          throw new HttpError(405, "请求方法不支持");
+        }
+        sendJson(res, 201, { link: await addAdminLink(segments[3], await readJsonBody(req)) });
+        return true;
+      }
+
+      throw new HttpError(404, "接口不存在");
     }
 
     if (segments[2] === "links" && segments[3] && !segments[4]) {
