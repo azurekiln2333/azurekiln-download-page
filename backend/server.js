@@ -571,6 +571,8 @@ function toPublicFile(row, includeLinks, links = []) {
     expiresAt: toIsoDate(row.expires_at),
     shortUrlId: row.short_url_id || "",
     shortUrl: normalizeShortUrl(row.short_url),
+    viewCount: Number(row.view_count || 0),
+    clickCount: Number(row.click_count || 0),
     storageCount: Number(row.storage_count || links.length || 0),
     storageLinks: includeLinks ? links : []
   };
@@ -585,7 +587,8 @@ function toPublicStorageLink(row) {
     url: row.url,
     extractCode: row.extract_code || "",
     note: row.note || "",
-    sortOrder: Number(row.sort_order || 0)
+    sortOrder: Number(row.sort_order || 0),
+    clickCount: Number(row.click_count || 0)
   };
 }
 
@@ -603,6 +606,8 @@ async function getDownloadFile(fileId) {
        f.access_code_hash,
        f.short_url_id,
        f.short_url,
+       f.view_count,
+       f.click_count,
        f.owner,
        f.updated_at,
        f.expires_at,
@@ -634,7 +639,8 @@ async function getStorageLinks(fileDbId) {
        l.url,
        l.extract_code,
        l.note,
-       l.sort_order
+       l.sort_order,
+       l.click_count
      FROM download_storage_links l
      LEFT JOIN download_storage_providers p
        ON p.storage_key = l.storage_key AND p.is_active = 1
@@ -736,6 +742,63 @@ function requireAccess(req, fileRow) {
   }
 }
 
+async function trackFileEvent(fileId, body) {
+  const event = String(body.event || "").trim().toLowerCase();
+  if (event !== "view" && event !== "click") {
+    throw new HttpError(400, "event 只支持 view 或 click");
+  }
+
+  if (event === "view") {
+    const [rows] = await getPool().execute(
+      `SELECT id FROM download_files WHERE public_id = ? AND is_active = 1 LIMIT 1`,
+      [fileId]
+    );
+    if (!rows.length) {
+      throw new HttpError(404, "文件不存在");
+    }
+    await getPool().execute(
+      `UPDATE download_files SET view_count = view_count + 1 WHERE id = ?`,
+      [rows[0].id]
+    );
+    await getPool().execute(
+      `INSERT INTO download_click_logs (file_id, link_id, event_type) VALUES (?, NULL, 'view')`,
+      [rows[0].id]
+    );
+    return;
+  }
+
+  const linkId = String(body.linkId || "").trim();
+  if (!linkId) {
+    throw new HttpError(400, "linkId 不能为空");
+  }
+
+  const [rows] = await getPool().execute(
+    `SELECT l.id, l.storage_key, f.id AS file_db_id
+     FROM download_storage_links l
+     JOIN download_files f ON f.id = l.file_id
+     WHERE l.public_id = ? AND f.public_id = ? AND l.is_active = 1 AND f.is_active = 1
+     LIMIT 1`,
+    [linkId, fileId]
+  );
+  if (!rows.length) {
+    throw new HttpError(404, "链接不存在");
+  }
+  const link = rows[0];
+
+  await getPool().execute(
+    `UPDATE download_storage_links SET click_count = click_count + 1, last_clicked_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [link.id]
+  );
+  await getPool().execute(
+    `UPDATE download_files SET click_count = click_count + 1 WHERE id = ?`,
+    [link.file_db_id]
+  );
+  await getPool().execute(
+    `INSERT INTO download_click_logs (file_id, link_id, event_type, storage_key) VALUES (?, ?, 'click', ?)`,
+    [link.file_db_id, link.id, link.storage_key]
+  );
+}
+
 async function handleApi(req, res, requestUrl) {
   const segments = requestUrl.pathname
     .split("/")
@@ -815,6 +878,12 @@ async function handleApi(req, res, requestUrl) {
     const fileRow = await getDownloadFile(fileId);
     requireAccess(req, fileRow);
     sendJson(res, 200, { file: await getProtectedFile(fileId) });
+    return true;
+  }
+
+  if (req.method === "POST" && segments[3] === "track") {
+    await trackFileEvent(fileId, await readJsonBody(req));
+    sendJson(res, 200, { ok: true });
     return true;
   }
 
