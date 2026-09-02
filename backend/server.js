@@ -76,7 +76,7 @@ function getPool() {
 function jsonHeaders(extra = {}) {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Admin-Token",
     "Content-Type": "application/json; charset=utf-8",
     ...extra
@@ -722,6 +722,423 @@ async function saveStorageProvider(body) {
   return { provider: (await listStorageProviders()).find((provider) => provider.storageKey === storageKey) };
 }
 
+function normalizeDbId(value) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new HttpError(400, "链接 ID 不正确");
+  }
+  return id;
+}
+
+function validateLinkUrl(value) {
+  const url = String(value || "").trim();
+  if (!url) {
+    throw new HttpError(400, "链接 URL 不能为空");
+  }
+  if (url.length > 2048) {
+    throw new HttpError(400, "链接 URL 不能超过 2048 个字符");
+  }
+  return url;
+}
+
+function toAdminFile(row, links = []) {
+  return {
+    id: row.public_id,
+    title: row.title,
+    name: row.file_name,
+    description: row.description || "",
+    icon: row.icon || "folder_zip",
+    protected: Boolean(row.access_code_hash),
+    owner: row.owner || "",
+    sizeBytes: Number(row.size_bytes || 0),
+    sizeLabel: row.size_label || "",
+    createdAt: toIsoDate(row.created_at),
+    updatedAt: toIsoDate(row.updated_at),
+    expiresAt: toIsoDate(row.expires_at),
+    isActive: Boolean(row.is_active),
+    shortUrlId: row.short_url_id || "",
+    shortUrl: normalizeShortUrl(row.short_url),
+    viewCount: Number(row.view_count || 0),
+    clickCount: Number(row.click_count || 0),
+    storageCount: Number(row.storage_count || links.length || 0),
+    links
+  };
+}
+
+function toAdminLink(row) {
+  return {
+    id: row.id,
+    publicId: row.public_id,
+    storageKey: row.storage_key,
+    name: row.storage_name,
+    icon: row.icon || row.storage_icon || "cloud_download",
+    url: row.url,
+    extractCode: row.extract_code || "",
+    note: row.note || "",
+    sortOrder: Number(row.sort_order || 0),
+    isActive: Boolean(row.is_active),
+    clickCount: Number(row.click_count || 0),
+    lastClickedAt: toIsoDate(row.last_clicked_at),
+    createdAt: toIsoDate(row.created_at)
+  };
+}
+
+async function getAdminLinks(fileDbId) {
+  const [rows] = await getPool().execute(
+    `SELECT l.*,
+       COALESCE(NULLIF(p.icon_url, ''), l.storage_icon) AS icon
+     FROM download_storage_links l
+     LEFT JOIN download_storage_providers p
+       ON p.storage_key = l.storage_key AND p.is_active = 1
+     WHERE l.file_id = ?
+     ORDER BY l.sort_order ASC, l.id ASC`,
+    [fileDbId]
+  );
+  return rows.map(toAdminLink);
+}
+
+async function getAdminStats() {
+  const [totalsRows] = await getPool().query(
+    `SELECT
+       (SELECT COUNT(*) FROM download_files) AS file_total,
+       (SELECT COUNT(*) FROM download_files WHERE is_active = 1) AS file_active,
+       (SELECT COALESCE(SUM(view_count), 0) FROM download_files) AS view_total,
+       (SELECT COALESCE(SUM(click_count), 0) FROM download_files) AS click_total,
+       (SELECT COUNT(*) FROM download_click_logs WHERE event_type = 'view' AND created_at >= CURRENT_DATE) AS view_today,
+       (SELECT COUNT(*) FROM download_click_logs WHERE event_type = 'click' AND created_at >= CURRENT_DATE) AS click_today`
+  );
+
+  const [dailyRows] = await getPool().query(
+    `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS day,
+            SUM(event_type = 'view') AS views,
+            SUM(event_type = 'click') AS clicks
+     FROM download_click_logs
+     WHERE created_at >= CURRENT_DATE - INTERVAL 13 DAY
+     GROUP BY day
+     ORDER BY day ASC`
+  );
+  const dailyMap = new Map(dailyRows.map((row) => [row.day, row]));
+  const daily = [];
+  for (let offset = 13; offset >= 0; offset -= 1) {
+    const day = new Date();
+    day.setDate(day.getDate() - offset);
+    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    const row = dailyMap.get(key);
+    daily.push({
+      date: key,
+      views: Number(row?.views || 0),
+      clicks: Number(row?.clicks || 0)
+    });
+  }
+
+  const [recentRows] = await getPool().query(
+    `SELECT c.id, c.event_type, c.storage_key, c.created_at,
+            f.public_id AS file_public_id, f.title AS file_title,
+            l.storage_name AS link_name
+     FROM download_click_logs c
+     JOIN download_files f ON f.id = c.file_id
+     LEFT JOIN download_storage_links l ON l.id = c.link_id
+     ORDER BY c.id DESC
+     LIMIT 50`
+  );
+
+  return {
+    totals: {
+      files: Number(totalsRows[0].file_total),
+      activeFiles: Number(totalsRows[0].file_active),
+      views: Number(totalsRows[0].view_total),
+      clicks: Number(totalsRows[0].click_total),
+      todayViews: Number(totalsRows[0].view_today),
+      todayClicks: Number(totalsRows[0].click_today)
+    },
+    daily,
+    recent: recentRows.map((row) => ({
+      id: row.id,
+      event: row.event_type,
+      fileId: row.file_public_id,
+      fileTitle: row.file_title,
+      linkName: row.link_name || "",
+      storageKey: row.storage_key || "",
+      createdAt: toIsoDate(row.created_at)
+    }))
+  };
+}
+
+async function listAdminFiles() {
+  const [rows] = await getPool().query(
+    `SELECT f.*,
+       (
+         SELECT COUNT(*)
+         FROM download_storage_links l
+         WHERE l.file_id = f.id
+       ) AS storage_count
+     FROM download_files f
+     ORDER BY f.created_at DESC, f.id DESC`
+  );
+  return rows.map((row) => toAdminFile(row));
+}
+
+async function getFileRowByPublicId(fileId) {
+  const [rows] = await getPool().execute(
+    `SELECT * FROM download_files WHERE public_id = ? LIMIT 1`,
+    [fileId]
+  );
+  return rows[0] || null;
+}
+
+async function getAdminFile(fileId) {
+  const fileRow = await getFileRowByPublicId(fileId);
+  if (!fileRow) {
+    throw new HttpError(404, "文件不存在");
+  }
+  const links = await getAdminLinks(fileRow.id);
+  return toAdminFile(
+    { ...fileRow, storage_count: links.length },
+    links
+  );
+}
+
+async function updateAdminFile(fileId, body) {
+  const updates = [];
+  const params = [];
+
+  if (body.title !== undefined) {
+    const title = String(body.title).trim();
+    if (!title) {
+      throw new HttpError(400, "文件标题不能为空");
+    }
+    updates.push("title = ?");
+    params.push(title);
+  }
+  if (body.fileName !== undefined) {
+    const fileName = String(body.fileName).trim();
+    if (!fileName) {
+      throw new HttpError(400, "文件名不能为空");
+    }
+    updates.push("file_name = ?");
+    params.push(fileName);
+  }
+  if (body.description !== undefined) {
+    updates.push("description = ?");
+    params.push(String(body.description).trim() || null);
+  }
+  if (body.icon !== undefined) {
+    updates.push("icon = ?");
+    params.push(String(body.icon).trim() || "folder_zip");
+  }
+  if (body.sizeLabel !== undefined) {
+    updates.push("size_label = ?");
+    params.push(String(body.sizeLabel).trim() || null);
+  }
+  if (body.sizeBytes !== undefined) {
+    const sizeBytes = Number(body.sizeBytes);
+    if (!Number.isFinite(sizeBytes) || sizeBytes < 0) {
+      throw new HttpError(400, "sizeBytes 不正确");
+    }
+    updates.push("size_bytes = ?");
+    params.push(Math.floor(sizeBytes));
+  }
+  if (body.owner !== undefined) {
+    updates.push("owner = ?");
+    params.push(String(body.owner).trim() || null);
+  }
+  if (body.accessCode !== undefined && String(body.accessCode).trim()) {
+    updates.push("access_code_hash = ?");
+    params.push(hashAccessCode(String(body.accessCode).trim()));
+  } else if (body.clearAccessCode === true) {
+    updates.push("access_code_hash = NULL");
+  }
+  if (body.expiresAt !== undefined) {
+    updates.push("expires_at = ?");
+    params.push(String(body.expiresAt).trim() ? toNullableDate(body.expiresAt) : null);
+  }
+  if (body.isActive !== undefined) {
+    updates.push("is_active = ?");
+    params.push(body.isActive ? 1 : 0);
+  }
+
+  if (!updates.length) {
+    throw new HttpError(400, "没有需要更新的字段");
+  }
+
+  updates.push("updated_at = CURRENT_TIMESTAMP");
+  params.push(fileId);
+
+  const [result] = await getPool().execute(
+    `UPDATE download_files SET ${updates.join(", ")} WHERE public_id = ?`,
+    params
+  );
+  if (!result.affectedRows) {
+    throw new HttpError(404, "文件不存在");
+  }
+  return getAdminFile(fileId);
+}
+
+async function deleteAdminFile(fileId) {
+  const [result] = await getPool().execute(
+    `DELETE FROM download_files WHERE public_id = ?`,
+    [fileId]
+  );
+  if (!result.affectedRows) {
+    throw new HttpError(404, "文件不存在");
+  }
+}
+
+async function addAdminLink(fileId, body) {
+  const fileRow = await getFileRowByPublicId(fileId);
+  if (!fileRow) {
+    throw new HttpError(404, "文件不存在");
+  }
+
+  const url = validateLinkUrl(body.url);
+  const storageName = String(body.storageName || "").trim();
+  const inferred = inferStorage(url, storageName || url);
+  const storageKey = body.storageKey ? normalizeStorageKey(body.storageKey) : inferred.key;
+  const name = storageName || inferred.name;
+  const extractCode = String(body.extractCode || "").trim() || null;
+  const note = String(body.note || "").trim() || null;
+  const isActive = body.isActive === undefined ? 1 : body.isActive ? 1 : 0;
+
+  let sortOrder = Number(body.sortOrder);
+  if (!Number.isFinite(sortOrder)) {
+    const [rows] = await getPool().execute(
+      `SELECT COALESCE(MAX(sort_order), 0) + 10 AS next_order FROM download_storage_links WHERE file_id = ?`,
+      [fileRow.id]
+    );
+    sortOrder = Number(rows[0].next_order);
+  } else {
+    sortOrder = Math.floor(sortOrder);
+  }
+
+  const basePublicId = `${fileRow.public_id}-${publicIdPart(storageKey, "link")}`.slice(0, 118);
+  for (let suffix = 1; suffix <= 20; suffix += 1) {
+    const publicId = suffix === 1 ? basePublicId : `${basePublicId}-${suffix}`.slice(0, 128);
+    try {
+      await getPool().execute(
+        `INSERT INTO download_storage_links (
+           public_id,
+           file_id,
+           storage_key,
+           storage_name,
+           storage_icon,
+           url,
+           extract_code,
+           note,
+           sort_order,
+           is_active
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          publicId,
+          fileRow.id,
+          storageKey,
+          name.slice(0, 128),
+          inferred.icon,
+          url,
+          extractCode,
+          note,
+          sortOrder,
+          isActive
+        ]
+      );
+      const [linkRows] = await getPool().execute(
+        `SELECT l.*, COALESCE(NULLIF(p.icon_url, ''), l.storage_icon) AS icon
+         FROM download_storage_links l
+         LEFT JOIN download_storage_providers p
+           ON p.storage_key = l.storage_key AND p.is_active = 1
+         WHERE l.public_id = ? LIMIT 1`,
+        [publicId]
+      );
+      return toAdminLink(linkRows[0]);
+    } catch (error) {
+      if (error.code !== "ER_DUP_ENTRY") {
+        throw error;
+      }
+    }
+  }
+
+  throw new HttpError(409, "链接 publicId 生成失败，请修改网盘 key");
+}
+
+async function updateAdminLink(linkId, body) {
+  const [rows] = await getPool().execute(
+    `SELECT * FROM download_storage_links WHERE id = ? LIMIT 1`,
+    [linkId]
+  );
+  if (!rows.length) {
+    throw new HttpError(404, "链接不存在");
+  }
+
+  const updates = [];
+  const params = [];
+
+  if (body.storageKey !== undefined) {
+    updates.push("storage_key = ?");
+    params.push(normalizeStorageKey(body.storageKey));
+  }
+  if (body.storageName !== undefined) {
+    const name = String(body.storageName).trim();
+    if (!name) {
+      throw new HttpError(400, "网盘名称不能为空");
+    }
+    updates.push("storage_name = ?");
+    params.push(name.slice(0, 128));
+  }
+  if (body.url !== undefined) {
+    updates.push("url = ?");
+    params.push(validateLinkUrl(body.url));
+  }
+  if (body.extractCode !== undefined) {
+    updates.push("extract_code = ?");
+    params.push(String(body.extractCode).trim() || null);
+  }
+  if (body.note !== undefined) {
+    updates.push("note = ?");
+    params.push(String(body.note).trim() || null);
+  }
+  if (body.sortOrder !== undefined) {
+    const sortOrder = Number(body.sortOrder);
+    if (!Number.isFinite(sortOrder)) {
+      throw new HttpError(400, "排序不正确");
+    }
+    updates.push("sort_order = ?");
+    params.push(Math.floor(sortOrder));
+  }
+  if (body.isActive !== undefined) {
+    updates.push("is_active = ?");
+    params.push(body.isActive ? 1 : 0);
+  }
+
+  if (!updates.length) {
+    throw new HttpError(400, "没有需要更新的字段");
+  }
+
+  params.push(linkId);
+  await getPool().execute(
+    `UPDATE download_storage_links SET ${updates.join(", ")} WHERE id = ?`,
+    params
+  );
+
+  const [updatedRows] = await getPool().execute(
+    `SELECT l.*, COALESCE(NULLIF(p.icon_url, ''), l.storage_icon) AS icon
+     FROM download_storage_links l
+     LEFT JOIN download_storage_providers p
+       ON p.storage_key = l.storage_key AND p.is_active = 1
+     WHERE l.id = ? LIMIT 1`,
+    [linkId]
+  );
+  return toAdminLink(updatedRows[0]);
+}
+
+async function deleteAdminLink(linkId) {
+  const [result] = await getPool().execute(
+    `DELETE FROM download_storage_links WHERE id = ?`,
+    [linkId]
+  );
+  if (!result.affectedRows) {
+    throw new HttpError(404, "链接不存在");
+  }
+}
+
 async function getPublicFile(fileId) {
   const row = await getDownloadFile(fileId);
   return toPublicFile(row, false);
@@ -821,27 +1238,78 @@ async function handleApi(req, res, requestUrl) {
     return true;
   }
 
-  if (segments[1] === "admin" && segments[2] === "import") {
-    if (req.method !== "POST") {
+  if (segments[1] === "admin") {
+    requireAdmin(req);
+
+    if (segments[2] === "import") {
+      if (req.method !== "POST") {
+        throw new HttpError(405, "请求方法不支持");
+      }
+      const result = await importDownloadFile(await readJsonBody(req));
+      sendJson(res, 201, result);
+      return true;
+    }
+
+    if (segments[2] === "storage-providers") {
+      if (req.method === "GET") {
+        sendJson(res, 200, { providers: await listStorageProviders() });
+        return true;
+      }
+      if (req.method === "POST" || req.method === "PUT") {
+        sendJson(res, 200, await saveStorageProvider(await readJsonBody(req)));
+        return true;
+      }
       throw new HttpError(405, "请求方法不支持");
     }
-    requireAdmin(req);
-    const result = await importDownloadFile(await readJsonBody(req));
-    sendJson(res, 201, result);
-    return true;
-  }
 
-  if (segments[1] === "admin" && segments[2] === "storage-providers") {
-    requireAdmin(req);
-    if (req.method === "GET") {
-      sendJson(res, 200, { providers: await listStorageProviders() });
+    if (segments[2] === "stats") {
+      if (req.method !== "GET") {
+        throw new HttpError(405, "请求方法不支持");
+      }
+      sendJson(res, 200, await getAdminStats());
       return true;
     }
-    if (req.method === "POST" || req.method === "PUT") {
-      sendJson(res, 200, await saveStorageProvider(await readJsonBody(req)));
+
+    if (segments[2] === "files" && segments[3] && !segments[4]) {
+      if (req.method === "GET") {
+        sendJson(res, 200, { file: await getAdminFile(segments[3]) });
+        return true;
+      }
+      if (req.method === "PUT") {
+        sendJson(res, 200, { file: await updateAdminFile(segments[3], await readJsonBody(req)) });
+        return true;
+      }
+      if (req.method === "DELETE") {
+        await deleteAdminFile(segments[3]);
+        sendJson(res, 200, { ok: true });
+        return true;
+      }
+      throw new HttpError(405, "请求方法不支持");
+    }
+
+    if (segments[2] === "files" && segments[3] && segments[4] === "links") {
+      if (req.method !== "POST") {
+        throw new HttpError(405, "请求方法不支持");
+      }
+      sendJson(res, 201, { link: await addAdminLink(segments[3], await readJsonBody(req)) });
       return true;
     }
-    throw new HttpError(405, "请求方法不支持");
+
+    if (segments[2] === "links" && segments[3] && !segments[4]) {
+      const linkId = normalizeDbId(segments[3]);
+      if (req.method === "PUT") {
+        sendJson(res, 200, { link: await updateAdminLink(linkId, await readJsonBody(req)) });
+        return true;
+      }
+      if (req.method === "DELETE") {
+        await deleteAdminLink(linkId);
+        sendJson(res, 200, { ok: true });
+        return true;
+      }
+      throw new HttpError(405, "请求方法不支持");
+    }
+
+    throw new HttpError(404, "接口不存在");
   }
 
   if (segments[1] !== "files" || !segments[2]) {
