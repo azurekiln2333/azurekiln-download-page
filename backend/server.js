@@ -1376,7 +1376,7 @@ function mimeType(filePath) {
 
 function isLegacyLinkCode(requestUrl) {
   const pathname = decodeURIComponent(requestUrl.pathname || "").replace(/^\/+|\/+$/g, "");
-  if (!pathname || pathname === "import" || pathname.includes("/")) {
+  if (!pathname || pathname === "import" || pathname === "admin" || pathname.includes("/")) {
     return false;
   }
   if (path.extname(pathname)) {
