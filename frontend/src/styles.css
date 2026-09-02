@@ -1271,7 +1271,7 @@ a {
 
 .admin-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
 }
 
@@ -1677,6 +1677,53 @@ a {
 
 .admin-share-urls__muted {
   color: var(--outline);
+}
+
+.admin-visitor-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-visitor-row {
+  padding: 10px 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  background: var(--surface-container-low);
+}
+
+.admin-visitor-row__ip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--on-surface);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-visitor-row__ip .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--primary);
+}
+
+.admin-visitor-row__meta {
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.admin-visitor-row time {
+  margin-left: auto;
+  color: var(--outline);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 900px) {

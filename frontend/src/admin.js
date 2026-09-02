@@ -10,6 +10,7 @@ const state = {
   pending: false
 };
 let editingFile = null;
+let editingVisitors = [];
 
 export function renderAdminDashboard() {
   if (!state.token) {
@@ -216,6 +217,7 @@ function renderDashboard() {
         ${renderStatCard("folder_shared", totals.files ?? 0, "分享文件总数", `${totals.activeFiles ?? 0} 个启用中`)}
         ${renderStatCard("visibility", totals.views ?? 0, "页面访问量", `今日 ${totals.todayViews ?? 0} 次`)}
         ${renderStatCard("ads_click", totals.clicks ?? 0, "链接点击量", `今日 ${totals.todayClicks ?? 0} 次`)}
+        ${renderStatCard("group", totals.visitors ?? 0, "独立访客 IP", `今日 ${totals.todayVisitors ?? 0} 个`)}
         ${renderStatCard("link", state.files.reduce((sum, file) => sum + Number(file.storageCount || 0), 0), "存储链接总数", "全部文件合计")}
       </section>
 
@@ -332,6 +334,7 @@ function renderFileRow(file) {
       <div class="admin-file-row__stats">
         <span class="chip" title="页面访问量"><span class="material-symbols-outlined" aria-hidden="true">visibility</span>${file.viewCount}</span>
         <span class="chip" title="链接点击量"><span class="material-symbols-outlined" aria-hidden="true">ads_click</span>${file.clickCount}</span>
+        <span class="chip" title="独立访客 IP 数"><span class="material-symbols-outlined" aria-hidden="true">person</span>${file.visitorCount ?? 0}</span>
         <span class="chip ${file.isActive ? "" : "chip--muted"}">${file.isActive ? "已启用" : "已停用"}</span>
       </div>
       <div class="admin-file-row__actions">
@@ -360,7 +363,7 @@ function renderRecentRow(entry) {
       </span>
       <span class="admin-recent-row__text">
         <strong>${escapeHtml(entry.fileTitle || entry.fileId)}</strong>
-        <span>${isClick ? `点击「${escapeHtml(entry.linkName || entry.storageKey || "链接")}」` : "打开了分享页"}</span>
+        <span>${isClick ? `点击「${escapeHtml(entry.linkName || entry.storageKey || "链接")}」` : "打开了分享页"}${entry.ip ? ` · IP ${escapeHtml(entry.ip)}` : ""}</span>
       </span>
       <time>${escapeHtml(formatDateTime(entry.createdAt))}</time>
     </div>
@@ -421,10 +424,14 @@ async function onFileListClick(event) {
 
 async function openFileEditor(fileId) {
   try {
-    const { file } = await adminApi(`/admin/files/${encodeURIComponent(fileId)}`);
-    editingFile = file;
+    const [filePayload, visitorsPayload] = await Promise.all([
+      adminApi(`/admin/files/${encodeURIComponent(fileId)}`),
+      adminApi(`/admin/files/${encodeURIComponent(fileId)}/visitors`)
+    ]);
+    editingFile = filePayload.file;
+    editingVisitors = visitorsPayload.visitors || [];
     const dialog = document.getElementById("admin-file-dialog");
-    renderDialogContent(file);
+    renderDialogContent(editingFile);
     dialog.showModal();
   } catch (error) {
     if (!handleAuthError(error)) {
@@ -535,6 +542,16 @@ function renderDialogContent(file) {
             </button>
           </div>
         </form>
+      </div>
+
+      <div class="admin-dialog-section">
+        <div class="section-heading">
+          <h2><span class="material-symbols-outlined" aria-hidden="true">group</span>IP 访客</h2>
+          <span>${editingVisitors.length} 个独立 IP</span>
+        </div>
+        <div class="admin-visitor-list">
+          ${editingVisitors.map(renderVisitorRow).join("") || `<p class="empty-preview">暂无访客记录。</p>`}
+        </div>
       </div>
     </div>
   `;
@@ -761,12 +778,29 @@ async function reloadEditingFile() {
   if (!editingFile) {
     return;
   }
-  const { file } = await adminApi(`/admin/files/${encodeURIComponent(editingFile.id)}`);
-  editingFile = file;
+  const [filePayload, visitorsPayload] = await Promise.all([
+    adminApi(`/admin/files/${encodeURIComponent(editingFile.id)}`),
+    adminApi(`/admin/files/${encodeURIComponent(editingFile.id)}/visitors`)
+  ]);
+  editingFile = filePayload.file;
+  editingVisitors = visitorsPayload.visitors || [];
   const dialog = document.getElementById("admin-file-dialog");
   if (dialog.open) {
-    renderDialogContent(file);
+    renderDialogContent(editingFile);
   }
+}
+
+function renderVisitorRow(visitor) {
+  return `
+    <div class="admin-visitor-row">
+      <span class="admin-visitor-row__ip">
+        <span class="material-symbols-outlined" aria-hidden="true">public</span>
+        ${escapeHtml(visitor.ip)}
+      </span>
+      <span class="admin-visitor-row__meta">访问 ${visitor.viewCount} 次 · 点击 ${visitor.clickCount} 次</span>
+      <time title="首次访问：${escapeHtml(formatDateTime(visitor.firstSeenAt))}">最近 ${escapeHtml(formatDateTime(visitor.lastSeenAt))}</time>
+    </div>
+  `;
 }
 
 function buildShareUrl(fileId) {

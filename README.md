@@ -25,6 +25,7 @@ copy .env.example .env
 ```powershell
 cd backend
 mysql -u root -p < add_click_stats.sql
+mysql -u root -p < add_visitor_ip_stats.sql
 ```
 
 按实际环境修改 `backend/.env` 里的 `DB_HOST`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`。
@@ -35,6 +36,13 @@ mysql -u root -p < add_click_stats.sql
 - 访客点击存储链接按钮会按链接记一次点击。
 - 计数存储在 `download_files.view_count`、`download_files.click_count`、`download_storage_links.click_count`，明细写入 `download_click_logs` 事件日志。
 - 上报接口：`POST /api/files/:fileId/track`，body 为 `{"event":"view"}` 或 `{"event":"click","linkId":"<链接 publicId>"}`。
+
+## 访客 IP 统计
+
+- 服务端会记录访客 IP：优先取反向代理头 `X-Forwarded-For` / `X-Real-IP`（生产环境在 nginx 后面时生效），否则取 TCP 连接地址，并归一化 IPv6 映射前缀。直连部署时可设 `TRUST_PROXY=0` 忽略代理头，避免伪造。
+- `download_ip_stats` 表按 `(file_id, ip)` 唯一键去重：同一资源同一 IP 只有一行，即一个独立访客；重复访问只累加该行的 `view_count` / `click_count` 并更新 `last_seen_at`，不会增加独立访客数。
+- 管理后台展示：概览卡「独立访客 IP」（含今日活跃）、文件行的 IP 数、编辑弹窗里的「IP 访客」列表（IP、访问次数、点击次数、最近访问时间），最近动态也会附带 IP。
+- 接口：`GET /api/admin/files/:fileId/visitors` 返回单个文件的访客 IP 列表。
 
 ## 管理后台
 
