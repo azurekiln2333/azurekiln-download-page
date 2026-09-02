@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS download_files (
   access_code_hash CHAR(64) NULL,
   short_url_id VARCHAR(128) NULL,
   short_url VARCHAR(255) NULL,
+  view_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  click_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
   owner VARCHAR(128) NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME NULL,
@@ -37,6 +39,8 @@ CREATE TABLE IF NOT EXISTS download_storage_links (
   note VARCHAR(255) NULL,
   sort_order INT NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
+  click_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  last_clicked_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -46,6 +50,26 @@ CREATE TABLE IF NOT EXISTS download_storage_links (
     FOREIGN KEY (file_id)
     REFERENCES download_files (id)
     ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS download_click_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  file_id BIGINT UNSIGNED NOT NULL,
+  link_id BIGINT UNSIGNED NULL,
+  event_type VARCHAR(16) NOT NULL,
+  storage_key VARCHAR(64) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_click_logs_time (created_at),
+  KEY idx_click_logs_file_time (file_id, created_at),
+  CONSTRAINT fk_click_logs_file
+    FOREIGN KEY (file_id)
+    REFERENCES download_files (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_click_logs_link
+    FOREIGN KEY (link_id)
+    REFERENCES download_storage_links (id)
+    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS download_storage_providers (
