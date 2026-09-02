@@ -1,15 +1,17 @@
 import "./styles.css";
+import { escapeHtml, formatBytes, formatDate, renderIcon, renderShell } from "./shared.js";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 const HASH_CHECK_TOOL_URL = "https://azurekiln.cn/hashchecktool";
 const LEGACY_LINK_BASE_URL = "https://azurekiln.cn/link.php";
 const params = new URLSearchParams(window.location.search);
 const IS_IMPORT_PAGE = params.get("admin") === "import" || window.location.pathname.replace(/\/+$/, "") === "/import";
+const IS_ADMIN_DASHBOARD = params.get("admin") === "dashboard" || window.location.pathname.replace(/\/+$/, "") === "/admin";
 const FILE_ID = params.get("file") || params.get("share");
 const AUTO_ACCESS_CODE = params.get("pwd") || params.get("code");
 const LEGACY_LINK_CODE = getLegacyLinkCode();
 const tokenKey = `azurekilnshare:${FILE_ID}:token`;
-let topbarScrollBound = false;
+const viewedKey = `azurekilnshare:viewed:${FILE_ID}`;
 
 const root = document.getElementById("app");
 const state = {
@@ -36,6 +38,12 @@ async function init() {
     return;
   }
 
+  if (IS_ADMIN_DASHBOARD) {
+    const { renderAdminDashboard } = await import("./admin.js");
+    renderAdminDashboard();
+    return;
+  }
+
   if (IS_IMPORT_PAGE) {
     renderImportPage();
     return;
@@ -50,6 +58,7 @@ async function init() {
   try {
     const { file } = await api(`/files/${encodeURIComponent(FILE_ID)}`, { auth: false });
     state.publicFile = file;
+    trackFileView();
     if (!file.protected) {
       await loadContent();
       return;
@@ -70,7 +79,7 @@ async function init() {
 
 function getLegacyLinkCode() {
   const pathname = decodeURIComponent(window.location.pathname || "").replace(/^\/+|\/+$/g, "");
-  if (!pathname || pathname === "import" || pathname.includes("/") || /\.[A-Za-z0-9]+$/.test(pathname)) {
+  if (!pathname || pathname === "import" || pathname === "admin" || pathname.includes("/") || /\.[A-Za-z0-9]+$/.test(pathname)) {
     return "";
   }
   return /^[A-Za-z0-9_-]{4,128}$/.test(pathname) ? pathname : "";
@@ -113,6 +122,30 @@ async function api(path, options = {}) {
   return payload;
 }
 
+function trackFileView() {
+  if (!FILE_ID || window.sessionStorage.getItem(viewedKey)) {
+    return;
+  }
+  window.sessionStorage.setItem(viewedKey, "1");
+  trackFileEvent({ event: "view" });
+}
+
+function trackFileEvent(payload) {
+  if (!FILE_ID) {
+    return;
+  }
+  try {
+    void fetch(`${API_BASE}/files/${encodeURIComponent(FILE_ID)}/track`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true
+    });
+  } catch {
+    // 统计上报失败不影响正常访问
+  }
+}
+
 async function verifyCode(code, options = {}) {
   state.pending = true;
   state.error = "";
@@ -148,59 +181,6 @@ async function loadContent() {
     state.error = error.message;
     renderAccessPage();
   }
-}
-
-function renderShell(mainContent, options = {}) {
-  const centered = options.centered ? " app-main--centered" : "";
-  root.innerHTML = `
-    <div class="app-shell">
-      <header class="topbar topbar--top">
-        <div class="topbar__inner">
-          <a class="brand" href="/" aria-label="AzureKilnShare">
-            <span class="brand__mark material-symbols-outlined" aria-hidden="true">shield</span>
-            <span class="brand__name">AzureKilnShare</span>
-          </a>
-          <button class="icon-button" type="button" aria-label="帮助">
-            <span class="material-symbols-outlined" aria-hidden="true">help_outline</span>
-          </button>
-        </div>
-      </header>
-      <main class="app-main${centered}">
-        ${mainContent}
-      </main>
-      <footer class="footer">
-        <div class="footer__inner">
-          <div class="footer__brand">
-            <span class="footer__name">AzureKilnShare</span>
-            <span class="footer__copy">© 2026 AzureKilnShare. All rights reserved.</span>
-          </div>
-          <div class="footer__links">
-            <a href="#">Terms of Service</a>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Support</a>
-          </div>
-        </div>
-      </footer>
-    </div>
-  `;
-  setupTopbarScrollState();
-}
-
-function setupTopbarScrollState() {
-  updateTopbarScrollState();
-  if (topbarScrollBound) {
-    return;
-  }
-  topbarScrollBound = true;
-  window.addEventListener("scroll", updateTopbarScrollState, { passive: true });
-}
-
-function updateTopbarScrollState() {
-  const topbar = document.querySelector(".topbar");
-  if (!topbar) {
-    return;
-  }
-  topbar.classList.toggle("topbar--top", window.scrollY <= 4);
 }
 
 function renderLoading() {
@@ -901,6 +881,7 @@ function renderDownloadPage() {
     button.addEventListener("click", () => {
       const link = links.find((item) => item.id === button.dataset.openLink);
       if (link) {
+        trackFileEvent({ event: "click", linkId: link.id });
         openLinks([link]);
       }
     });
@@ -1027,14 +1008,6 @@ function renderStorageLinkButton(link) {
   `;
 }
 
-function renderIcon(icon) {
-  const value = String(icon || "cloud_download");
-  if (/^(https?:)?\/\//.test(value) || value.startsWith("/") || /\.(?:png|jpe?g|webp|gif|svg|ico)(?:\?.*)?$/i.test(value)) {
-    return `<img src="${escapeHtml(value)}" alt="" loading="lazy" decoding="async" />`;
-  }
-  return `<span class="material-symbols-outlined" aria-hidden="true">${escapeHtml(value)}</span>`;
-}
-
 function openLinks(links) {
   links.filter((link) => link.url).forEach((link, index) => {
     window.setTimeout(() => {
@@ -1055,39 +1028,4 @@ function normalizeDownloadUrl(url) {
     return value;
   }
   return `/${encodeURIComponent(value)}`;
-}
-
-function formatBytes(bytes) {
-  const value = Number(bytes || 0);
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  const units = ["KB", "MB", "GB", "TB"];
-  let size = value / 1024;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "未知日期";
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date(value));
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
