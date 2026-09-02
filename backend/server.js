@@ -18,6 +18,7 @@ const PUBLIC_DOWNLOAD_BASE_URL = process.env.PUBLIC_DOWNLOAD_BASE_URL || "https:
 const SHORT_URL_API_URL = process.env.SHORT_URL_API_URL || "https://azurekiln.cn/sl/api.php";
 const SHORT_URL_PUBLIC_PREFIX = process.env.SHORT_URL_PUBLIC_PREFIX || "https://azurekiln.cn/";
 const SHORT_URL_CUSTOM_PREFIX = process.env.SHORT_URL_CUSTOM_PREFIX || "dl";
+const TRUST_PROXY = process.env.TRUST_PROXY !== "0";
 
 let pool = null;
 
@@ -187,6 +188,25 @@ function getAdminToken(req) {
     return headerToken[0] || "";
   }
   return headerToken || getRequestToken(req);
+}
+
+function getVisitorIp(req) {
+  let ip = "";
+  if (TRUST_PROXY) {
+    const forwarded = req.headers["x-forwarded-for"];
+    if (typeof forwarded === "string" && forwarded.trim()) {
+      ip = forwarded.split(",")[0].trim();
+    } else if (req.headers["x-real-ip"]) {
+      ip = String(req.headers["x-real-ip"]).trim();
+    }
+  }
+  if (!ip) {
+    ip = (req.socket && req.socket.remoteAddress) || "";
+  }
+  if (ip.startsWith("::ffff:")) {
+    ip = ip.slice(7);
+  }
+  return (ip || "unknown").slice(0, 64);
 }
 
 function requireAdmin(req) {
@@ -760,6 +780,7 @@ function toAdminFile(row, links = []) {
     shortUrl: normalizeShortUrl(row.short_url),
     viewCount: Number(row.view_count || 0),
     clickCount: Number(row.click_count || 0),
+    visitorCount: Number(row.visitor_count || 0),
     storageCount: Number(row.storage_count || links.length || 0),
     links
   };
@@ -805,7 +826,9 @@ async function getAdminStats() {
        (SELECT COALESCE(SUM(view_count), 0) FROM download_files) AS view_total,
        (SELECT COALESCE(SUM(click_count), 0) FROM download_files) AS click_total,
        (SELECT COUNT(*) FROM download_click_logs WHERE event_type = 'view' AND created_at >= CURRENT_DATE) AS view_today,
-       (SELECT COUNT(*) FROM download_click_logs WHERE event_type = 'click' AND created_at >= CURRENT_DATE) AS click_today`
+       (SELECT COUNT(*) FROM download_click_logs WHERE event_type = 'click' AND created_at >= CURRENT_DATE) AS click_today,
+       (SELECT COUNT(*) FROM download_ip_stats) AS visitor_total,
+       (SELECT COUNT(*) FROM download_ip_stats WHERE last_seen_at >= CURRENT_DATE) AS visitor_today`
   );
 
   const [dailyRows] = await getPool().query(
@@ -832,7 +855,7 @@ async function getAdminStats() {
   }
 
   const [recentRows] = await getPool().query(
-    `SELECT c.id, c.event_type, c.storage_key, c.created_at,
+    `SELECT c.id, c.event_type, c.storage_key, c.ip, c.created_at,
             f.public_id AS file_public_id, f.title AS file_title,
             l.storage_name AS link_name
      FROM download_click_logs c
@@ -849,7 +872,9 @@ async function getAdminStats() {
       views: Number(totalsRows[0].view_total),
       clicks: Number(totalsRows[0].click_total),
       todayViews: Number(totalsRows[0].view_today),
-      todayClicks: Number(totalsRows[0].click_today)
+      todayClicks: Number(totalsRows[0].click_today),
+      visitors: Number(totalsRows[0].visitor_total),
+      todayVisitors: Number(totalsRows[0].visitor_today)
     },
     daily,
     recent: recentRows.map((row) => ({
@@ -859,6 +884,7 @@ async function getAdminStats() {
       fileTitle: row.file_title,
       linkName: row.link_name || "",
       storageKey: row.storage_key || "",
+      ip: row.ip || "",
       createdAt: toIsoDate(row.created_at)
     }))
   };
@@ -871,7 +897,12 @@ async function listAdminFiles() {
          SELECT COUNT(*)
          FROM download_storage_links l
          WHERE l.file_id = f.id
-       ) AS storage_count
+       ) AS storage_count,
+       (
+         SELECT COUNT(*)
+         FROM download_ip_stats v
+         WHERE v.file_id = f.id
+       ) AS visitor_count
      FROM download_files f
      ORDER BY f.created_at DESC, f.id DESC`
   );
@@ -893,9 +924,36 @@ async function getAdminFile(fileId) {
   }
   const links = await getAdminLinks(fileRow.id);
   return toAdminFile(
-    { ...fileRow, storage_count: links.length },
+    { ...fileRow, storage_count: links.length, visitor_count: await countFileVisitors(fileRow.id) },
     links
   );
+}
+
+async function countFileVisitors(fileDbId) {
+  const [rows] = await getPool().execute(
+    `SELECT COUNT(*) AS visitor_count FROM download_ip_stats WHERE file_id = ?`,
+    [fileDbId]
+  );
+  return Number(rows[0].visitor_count || 0);
+}
+
+async function getAdminFileVisitors(fileId) {
+  const [rows] = await getPool().execute(
+    `SELECT v.ip, v.view_count, v.click_count, v.first_seen_at, v.last_seen_at
+     FROM download_ip_stats v
+     JOIN download_files f ON f.id = v.file_id
+     WHERE f.public_id = ?
+     ORDER BY v.last_seen_at DESC, v.id DESC
+     LIMIT 200`,
+    [fileId]
+  );
+  return rows.map((row) => ({
+    ip: row.ip || "",
+    viewCount: Number(row.view_count || 0),
+    clickCount: Number(row.click_count || 0),
+    firstSeenAt: toIsoDate(row.first_seen_at),
+    lastSeenAt: toIsoDate(row.last_seen_at)
+  }));
 }
 
 async function updateAdminFile(fileId, body) {
@@ -1159,7 +1217,7 @@ function requireAccess(req, fileRow) {
   }
 }
 
-async function trackFileEvent(fileId, body) {
+async function trackFileEvent(fileId, body, ip) {
   const event = String(body.event || "").trim().toLowerCase();
   if (event !== "view" && event !== "click") {
     throw new HttpError(400, "event 只支持 view 或 click");
@@ -1178,8 +1236,13 @@ async function trackFileEvent(fileId, body) {
       [rows[0].id]
     );
     await getPool().execute(
-      `INSERT INTO download_click_logs (file_id, link_id, event_type) VALUES (?, NULL, 'view')`,
-      [rows[0].id]
+      `INSERT INTO download_click_logs (file_id, link_id, event_type, ip) VALUES (?, NULL, 'view', ?)`,
+      [rows[0].id, ip]
+    );
+    await getPool().execute(
+      `INSERT INTO download_ip_stats (file_id, ip, view_count) VALUES (?, ?, 1)
+       ON DUPLICATE KEY UPDATE view_count = view_count + 1`,
+      [rows[0].id, ip]
     );
     return;
   }
@@ -1211,8 +1274,13 @@ async function trackFileEvent(fileId, body) {
     [link.file_db_id]
   );
   await getPool().execute(
-    `INSERT INTO download_click_logs (file_id, link_id, event_type, storage_key) VALUES (?, ?, 'click', ?)`,
-    [link.file_db_id, link.id, link.storage_key]
+    `INSERT INTO download_click_logs (file_id, link_id, event_type, storage_key, ip) VALUES (?, ?, 'click', ?, ?)`,
+    [link.file_db_id, link.id, link.storage_key, ip]
+  );
+  await getPool().execute(
+    `INSERT INTO download_ip_stats (file_id, ip, click_count) VALUES (?, ?, 1)
+     ON DUPLICATE KEY UPDATE click_count = click_count + 1`,
+    [link.file_db_id, ip]
   );
 }
 
@@ -1304,6 +1372,14 @@ async function handleApi(req, res, requestUrl) {
         return true;
       }
 
+      if (segments[4] === "visitors") {
+        if (req.method !== "GET") {
+          throw new HttpError(405, "请求方法不支持");
+        }
+        sendJson(res, 200, { visitors: await getAdminFileVisitors(segments[3]) });
+        return true;
+      }
+
       throw new HttpError(404, "接口不存在");
     }
 
@@ -1362,7 +1438,7 @@ async function handleApi(req, res, requestUrl) {
   }
 
   if (req.method === "POST" && segments[3] === "track") {
-    await trackFileEvent(fileId, await readJsonBody(req));
+    await trackFileEvent(fileId, await readJsonBody(req), getVisitorIp(req));
     sendJson(res, 200, { ok: true });
     return true;
   }

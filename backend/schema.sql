@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS download_click_logs (
   link_id BIGINT UNSIGNED NULL,
   event_type VARCHAR(16) NOT NULL,
   storage_key VARCHAR(64) NULL,
+  ip VARCHAR(64) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_click_logs_time (created_at),
@@ -70,6 +71,24 @@ CREATE TABLE IF NOT EXISTS download_click_logs (
     FOREIGN KEY (link_id)
     REFERENCES download_storage_links (id)
     ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS download_ip_stats (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  file_id BIGINT UNSIGNED NOT NULL,
+  ip VARCHAR(64) NOT NULL,
+  view_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  click_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ip_stats_file_ip (file_id, ip),
+  KEY idx_ip_stats_ip (ip),
+  KEY idx_ip_stats_last_seen (last_seen_at),
+  CONSTRAINT fk_ip_stats_file
+    FOREIGN KEY (file_id)
+    REFERENCES download_files (id)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS download_storage_providers (
