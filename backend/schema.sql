@@ -117,7 +117,7 @@ INSERT INTO download_storage_providers (
 ('189cloud', '天翼云盘', 'https://statics.azurekiln.cn/clouddrive/189cloud/logo.ico', 60, 1),
 ('onedrive', 'OneDrive', 'https://statics.azurekiln.cn/clouddrive/onedrive/odbfavicon.ico', 70, 1),
 ('googledrive', 'Google Drive', 'https://statics.azurekiln.cn/clouddrive/googledrive/drive_favicon_2026_32dp.png', 80, 1),
-('guangyapan', '光亚云盘', 'https://statics.azurekiln.cn/clouddrive/guangyapan/icon.png', 90, 1)
+('guangyapan', '光鸭云盘', 'https://statics.azurekiln.cn/clouddrive/guangyapan/icon.png', 90, 1)
 ON DUPLICATE KEY UPDATE
   display_name = VALUES(display_name),
   icon_url = VALUES(icon_url),
