@@ -1679,9 +1679,15 @@ a {
 
 .admin-card__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.admin-card__title {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 }
 
 .admin-card__head h2 {
@@ -1691,6 +1697,14 @@ a {
   line-height: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+.admin-card__title p {
+  margin: 0;
+  color: var(--outline);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
 }
 
 .admin-card__meta {
@@ -1717,55 +1731,188 @@ a {
   gap: 12px;
 }
 
-.admin-stats {
+/* 统计卡：参考 New API StatCard，无外框堆叠，仅图标 + 标题 + 数值 + 详情格 */
+.admin-stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 16px;
 }
 
 .admin-stat-card {
-  padding: 18px 20px;
+  padding: 16px 18px;
   border: 1px solid var(--surface-container);
   border-radius: var(--radius);
-  display: grid;
-  gap: 4px;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   background: var(--surface-container-lowest);
   box-shadow: var(--shadow-1);
 }
 
+.admin-stat-card__head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .admin-stat-card__icon {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 6px;
-  border-radius: var(--radius-md);
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: rgba(0, 88, 188, 0.08);
   color: var(--primary);
+  font-size: 18px;
+}
+
+.admin-stat-card__label {
+  min-width: 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-stat-card__value {
   color: var(--on-surface);
-  font-size: 28px;
-  line-height: 34px;
-  font-weight: 800;
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.admin-stat-card__label {
-  color: var(--on-surface-variant);
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 700;
+.admin-stat-card__details {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.admin-stat-card__hint {
+.admin-stat-card__detail {
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 2px;
+  background: var(--surface-container-low);
+}
+
+.admin-stat-card__detail dt {
+  color: var(--outline);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+}
+
+.admin-stat-card__detail dd {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 表格：参考 New API Table，表头一条底线，行内无多余分割 */
+.admin-table-wrap {
+  width: 100%;
+  margin: 0 -4px;
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.admin-table thead th {
+  padding-top: 0;
+  border-bottom: 1px solid var(--surface-container);
   color: var(--outline);
   font-size: 12px;
   line-height: 16px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-table tbody tr {
+  border-bottom: 1px solid var(--surface-container-low);
+}
+
+.admin-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.admin-table tbody tr:hover {
+  background: var(--surface-container-low);
+}
+
+.admin-table__right {
+  text-align: right;
+}
+
+.admin-table__strong {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--on-surface);
+  font-weight: 600;
+}
+
+.admin-table__secondary {
+  color: var(--outline);
+  font-size: 12px;
+}
+
+.admin-table__mono {
+  color: var(--on-surface-variant);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.admin-event {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 88, 188, 0.08);
+  color: var(--primary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-event .material-symbols-outlined {
+  font-size: 15px;
+}
+
+.admin-event--click {
+  background: var(--primary-container);
+  color: var(--on-primary);
 }
 
 .admin-trend-legend {

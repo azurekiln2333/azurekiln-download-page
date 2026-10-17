@@ -580,27 +580,67 @@ function renderAdminBreadcrumbOnly() {
 }
 
 /* ------------------------------------------------------------------ *
- * 页面：概览（pi-2 负责细化）
+ * 页面：概览
+ *
+ * 版式参考 New API 的 TitledCard + StatCard：
+ *   - 统计卡一行（图标 + 标题 → 数值 → 详情小格），无重复标题与进度条。
+ *   - 趋势卡与动态卡各自只有一个标题，卡内不再出现第二条分割线。
  * ------------------------------------------------------------------ */
 
 function renderOverviewPage() {
   const totals = state.stats?.totals || {};
   const daily = state.stats?.daily || [];
   const recent = state.stats?.recent || [];
+  const linkTotal = state.files.reduce((sum, file) => sum + Number(file.storageCount || 0), 0);
+  const activeLinks = state.files.reduce((sum, file) => sum + Number(file.activeStorageCount ?? file.storageCount ?? 0), 0);
 
   return `
     <div class="admin-page" data-admin-page="overview">
-      <section class="admin-stats">
-        ${renderStatCard("folder_shared", totals.files ?? 0, "分享文件总数", `${totals.activeFiles ?? 0} 个启用中`)}
-        ${renderStatCard("visibility", totals.views ?? 0, "页面访问量", `今日 ${totals.todayViews ?? 0} 次`)}
-        ${renderStatCard("ads_click", totals.clicks ?? 0, "链接点击量", `今日 ${totals.todayClicks ?? 0} 次`)}
-        ${renderStatCard("group", totals.visitors ?? 0, "独立访客 IP", `今日 ${totals.todayVisitors ?? 0} 个`)}
-        ${renderStatCard("link", state.files.reduce((sum, file) => sum + Number(file.storageCount || 0), 0), "存储链接总数", "全部文件合计")}
+      <section class="admin-stat-grid">
+        ${renderStatCard({
+          icon: "folder_shared",
+          value: totals.files ?? 0,
+          label: "分享文件总数",
+          details: [
+            { label: "启用中", value: `${totals.activeFiles ?? 0} 个` },
+            { label: "已停用", value: `${Math.max(0, Number(totals.files ?? 0) - Number(totals.activeFiles ?? 0))} 个` }
+          ]
+        })}
+        ${renderStatCard({
+          icon: "visibility",
+          value: totals.views ?? 0,
+          label: "页面访问量",
+          details: [
+            { label: "今日", value: `${totals.todayViews ?? 0} 次` },
+            { label: "独立 IP", value: `${totals.visitors ?? 0} 个` }
+          ]
+        })}
+        ${renderStatCard({
+          icon: "ads_click",
+          value: totals.clicks ?? 0,
+          label: "链接点击量",
+          details: [
+            { label: "今日", value: `${totals.todayClicks ?? 0} 次` },
+            { label: "今日访客 IP", value: `${totals.todayVisitors ?? 0} 个` }
+          ]
+        })}
+        ${renderStatCard({
+          icon: "link",
+          value: linkTotal,
+          label: "存储链接总数",
+          details: [
+            { label: "启用中", value: `${activeLinks} 条` },
+            { label: "覆盖文件", value: `${state.files.filter((file) => Number(file.storageCount || 0) > 0).length} 个` }
+          ]
+        })}
       </section>
 
-      <section class="admin-card admin-card--trend">
+      <section class="admin-card admin-card--trend" data-admin-card="trend">
         <div class="admin-card__head">
-          <h2>近 14 天趋势</h2>
+          <div class="admin-card__title">
+            <h2>近 14 天趋势</h2>
+            <p>每天的访问与链接点击量</p>
+          </div>
           <span class="admin-trend-legend">
             <span><i class="admin-dot admin-dot--view"></i>访问</span>
             <span><i class="admin-dot admin-dot--click"></i>点击</span>
@@ -609,14 +649,15 @@ function renderOverviewPage() {
         ${renderTrend(daily)}
       </section>
 
-      <section class="admin-card">
+      <section class="admin-card" data-admin-card="recent">
         <div class="admin-card__head">
-          <h2>最近动态</h2>
+          <div class="admin-card__title">
+            <h2>最近动态</h2>
+            <p>最新的访问与点击记录</p>
+          </div>
           <a class="admin-card__link" href="#activity" data-page="activity">查看全部</a>
         </div>
-        <div class="admin-recent">
-          ${recent.slice(0, 8).map(renderRecentRow).join("") || `<p class="empty-preview">暂无访问记录。</p>`}
-        </div>
+        ${renderRecentTable(recent.slice(0, 8))}
       </section>
     </div>
   `;
@@ -1049,16 +1090,31 @@ async function onTokenDialogSubmit(event) {
 }
 
 /* ------------------------------------------------------------------ *
- * 组件：统计 / 趋势 / 列表行（pi-2 可继续细化）
+ * 组件：统计卡（New API StatCard 版式）
  * ------------------------------------------------------------------ */
 
-function renderStatCard(icon, value, label, hint) {
+function renderStatCard({ icon, value, label, details = [] }) {
   return `
     <article class="admin-stat-card">
-      <span class="admin-stat-card__icon material-symbols-outlined" aria-hidden="true">${escapeHtml(icon)}</span>
+      <div class="admin-stat-card__head">
+        <span class="admin-stat-card__icon material-symbols-outlined" aria-hidden="true">${escapeHtml(icon)}</span>
+        <span class="admin-stat-card__label">${escapeHtml(label)}</span>
+      </div>
       <span class="admin-stat-card__value">${Number(value || 0).toLocaleString("zh-CN")}</span>
-      <span class="admin-stat-card__label">${escapeHtml(label)}</span>
-      <span class="admin-stat-card__hint">${escapeHtml(hint || "")}</span>
+      ${
+        details.length
+          ? `<dl class="admin-stat-card__details">${details
+              .map(
+                (detail) => `
+                  <div class="admin-stat-card__detail">
+                    <dt>${escapeHtml(detail.label)}</dt>
+                    <dd>${escapeHtml(detail.value)}</dd>
+                  </div>
+                `
+              )
+              .join("")}</dl>`
+          : ""
+      }
     </article>
   `;
 }
@@ -1128,19 +1184,48 @@ function renderFileRow(file) {
   `;
 }
 
+function renderRecentTable(entries) {
+  if (!entries.length) {
+    return `<p class="empty-preview">暂无访问记录。</p>`;
+  }
+  return `
+    <div class="admin-table-wrap">
+      <table class="admin-table admin-table--activity">
+        <thead>
+          <tr>
+            <th scope="col">事件</th>
+            <th scope="col">文件</th>
+            <th scope="col">详情</th>
+            <th scope="col">来源 IP</th>
+            <th scope="col" class="admin-table__right">时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${entries.map(renderRecentRow).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderRecentRow(entry) {
   const isClick = entry.event === "click";
+  const detail = isClick
+    ? `点击「${entry.linkName || entry.storageKey || "链接"}」`
+    : "打开了分享页";
   return `
-    <div class="admin-recent-row">
-      <span class="admin-recent-row__icon ${isClick ? "admin-recent-row__icon--click" : ""}">
-        <span class="material-symbols-outlined" aria-hidden="true">${isClick ? "ads_click" : "visibility"}</span>
-      </span>
-      <span class="admin-recent-row__text">
-        <strong>${escapeHtml(entry.fileTitle || entry.fileId)}</strong>
-        <span>${isClick ? `点击「${escapeHtml(entry.linkName || entry.storageKey || "链接")}」` : "打开了分享页"}${entry.ip ? ` · IP ${escapeHtml(entry.ip)}` : ""}</span>
-      </span>
-      <time>${escapeHtml(formatDateTime(entry.createdAt))}</time>
-    </div>
+    <tr class="admin-table__row">
+      <td>
+        <span class="admin-event ${isClick ? "admin-event--click" : ""}">
+          <span class="material-symbols-outlined" aria-hidden="true">${isClick ? "ads_click" : "visibility"}</span>
+          <span>${isClick ? "点击" : "访问"}</span>
+        </span>
+      </td>
+      <td class="admin-table__strong" title="${escapeHtml(entry.fileTitle || entry.fileId)}">${escapeHtml(entry.fileTitle || entry.fileId)}</td>
+      <td class="admin-table__secondary">${escapeHtml(detail)}</td>
+      <td class="admin-table__mono">${entry.ip ? escapeHtml(entry.ip) : "—"}</td>
+      <td class="admin-table__right admin-table__secondary">${escapeHtml(formatDateTime(entry.createdAt))}</td>
+    </tr>
   `;
 }
 
