@@ -193,7 +193,7 @@ a {
 .access-card {
   width: min(100%, 480px);
   background: var(--surface-container-lowest);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-1);
 }
 
@@ -2146,6 +2146,10 @@ a {
 
 .admin-status--off {
   background: var(--surface-container);
+  color: var(--outline);
+}
+
+.chip--muted {
   color: var(--outline);
 }
 
