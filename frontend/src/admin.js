@@ -1,17 +1,44 @@
-import { escapeHtml, formatDate, formatDateTime, renderIcon, renderShell } from "./shared.js";
+/**
+ * AzureKilnShare · 管理后台（`?admin=dashboard` / `/admin`）
+ *
+ * 外壳（shell / 侧边栏 / 顶栏 / 路由）由本文件的「布局骨架」负责。
+ * 各页面的内容挂载函数：
+ *   - renderOverviewPage()  概览页（统计卡片、趋势、最近动态）—— pi-2 负责填充
+ *   - renderFilesPage()     文件管理页（文件列表、编辑弹窗）—— pi-2 负责填充
+ *   - renderActivityPage()  访问动态页（访客 IP / 访问日志）—— pi-2 负责填充
+ *   - renderTokensPage()    令牌管理页 —— pi-4 负责填充（当前为占位）
+ *
+ * 新增页面：在 ADMIN_PAGES 里加一项，并实现对应的 render<Name>Page() 返回 HTML 字符串，
+ * 然后按需在 renderAdminPage() 的绑定点注册事件。
+ */
+import { escapeHtml, formatDate, formatDateTime, renderIcon } from "./shared.js";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 const ADMIN_TOKEN_STORAGE_KEY = "azurekilnshare:admin-session-token";
 const LEGACY_ADMIN_TOKEN_SESSION_KEY = "azurekilnshare:admin-token";
+const SIDEBAR_STORAGE_KEY = "azurekilnshare:admin-sidebar-collapsed";
+
+const ADMIN_PAGES = [
+  { id: "overview", label: "概览", icon: "dashboard", summary: "访问与点击统计总览" },
+  { id: "files", label: "文件管理", icon: "folder_managed", summary: "分享文件与存储链接" },
+  { id: "activity", label: "访问动态", icon: "history", summary: "访客 IP 与最近访问记录" },
+  { id: "tokens", label: "令牌管理", icon: "key", summary: "管理后台访问令牌" }
+];
 
 const state = {
   token: readStoredAdminToken(),
   stats: null,
   files: [],
-  pending: false
+  pending: false,
+  page: "overview",
+  sidebarCollapsed: readSidebarCollapsed(),
+  accountMenuOpen: false,
+  loaded: false
 };
 let editingFile = null;
 let editingVisitors = [];
+let routerBound = false;
+let outsideClickBound = false;
 
 function readStoredAdminToken() {
   const token = window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
@@ -37,6 +64,87 @@ function clearStoredAdminToken() {
   window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
   window.sessionStorage.removeItem(LEGACY_ADMIN_TOKEN_SESSION_KEY);
 }
+
+function readSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeSidebarCollapsed(collapsed) {
+  try {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
+  } catch {
+    /* 无法持久化时仅本次会话生效 */
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 路由
+ * ------------------------------------------------------------------ */
+
+function currentAdminPage() {
+  const hash = window.location.hash.replace(/^#\/?/, "").split("?")[0].trim();
+  if (ADMIN_PAGES.some((page) => page.id === hash)) {
+    return hash;
+  }
+  const query = new URLSearchParams(window.location.search).get("page");
+  if (ADMIN_PAGES.some((page) => page.id === query)) {
+    return query;
+  }
+  return "overview";
+}
+
+function navigateAdminPage(pageId, options = {}) {
+  if (!ADMIN_PAGES.some((page) => page.id === pageId)) {
+    return;
+  }
+  const nextHash = `#${pageId}`;
+  if (window.location.hash === nextHash) {
+    if (!options.silent) {
+      state.page = pageId;
+      renderAdminPage();
+    }
+    return;
+  }
+  // hashchange 监听器会负责重新渲染
+  window.location.hash = nextHash;
+}
+
+function bindRouter() {
+  if (routerBound) {
+    return;
+  }
+  routerBound = true;
+  window.addEventListener("hashchange", () => {
+    state.page = currentAdminPage();
+    state.accountMenuOpen = false;
+    renderAdminPage();
+  });
+}
+
+function bindOutsideClick() {
+  if (outsideClickBound) {
+    return;
+  }
+  outsideClickBound = true;
+  document.addEventListener("click", (event) => {
+    if (!state.accountMenuOpen) {
+      return;
+    }
+    if (event.target.closest(".admin-account")) {
+      return;
+    }
+    state.accountMenuOpen = false;
+    syncAccountMenu();
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * 数据加载
+ * ------------------------------------------------------------------ */
 
 export function renderAdminDashboard() {
   if (!state.token) {
@@ -85,14 +193,15 @@ function handleAuthError(error) {
   }
   state.token = "";
   state.pending = false;
+  state.loaded = false;
   clearStoredAdminToken();
   renderLogin(error.message);
   return true;
 }
 
 async function refreshData(options = {}) {
-  if (!options.silent) {
-    renderLoading();
+  if (!options.silent || !state.loaded) {
+    renderAdminLoading();
   }
   try {
     const [stats, filesPayload] = await Promise.all([
@@ -101,15 +210,15 @@ async function refreshData(options = {}) {
     ]);
     state.stats = stats;
     state.files = filesPayload.files || [];
+    state.loaded = true;
     renderDashboard();
   } catch (error) {
     if (handleAuthError(error)) {
       return;
     }
-    renderFatal(error.message);
+    renderAdminFatal(error.message);
   }
 }
-
 async function refreshDashboardData() {
   try {
     const [stats, filesPayload] = await Promise.all([
@@ -119,72 +228,84 @@ async function refreshDashboardData() {
     state.stats = stats;
     state.files = filesPayload.files || [];
     const dialog = document.getElementById("admin-file-dialog");
-    if (!dialog?.open) {
-      renderDashboard();
+    if (dialog?.open) {
+      renderAdminBreadcrumbOnly();
+    } else {
+      renderAdminPage();
     }
   } catch (error) {
     handleAuthError(error);
   }
 }
 
-function renderLoading() {
-  renderShell(
-    `<section class="loading-panel" aria-live="polite">
-      <span class="material-symbols-outlined loading-panel__icon" aria-hidden="true">progress_activity</span>
-      <span>正在加载管理数据...</span>
-    </section>`,
-    { centered: true }
-  );
+/* ------------------------------------------------------------------ *
+ * 未登录 / 加载 / 错误
+ *
+ * 这些状态使用独立的 `.admin-auth` 居中容器，不套用登录后的侧栏外壳，
+ * 因此公开下载页（main.js / shared.js）完全不受影响。
+ * ------------------------------------------------------------------ */
+
+function renderAdminLoading() {
+  document.getElementById("app").innerHTML = `
+    <div class="admin-auth">
+      <section class="loading-panel" aria-live="polite">
+        <span class="material-symbols-outlined loading-panel__icon" aria-hidden="true">progress_activity</span>
+        <span>正在加载管理数据...</span>
+      </section>
+    </div>
+  `;
 }
 
-function renderFatal(message) {
-  renderShell(
-    `<section class="access-card">
-      <div class="access-card__icon access-card__icon--error">
-        <span class="material-symbols-outlined" aria-hidden="true">error</span>
-      </div>
-      <div class="access-card__header">
-        <h1>管理后台</h1>
-        <p>${escapeHtml(message)}</p>
-      </div>
-      <button class="primary-button" type="button" id="admin-retry">
-        <span>重试</span>
-        <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
-      </button>
-    </section>`,
-    { centered: true }
-  );
+function renderAdminFatal(message) {
+  document.getElementById("app").innerHTML = `
+    <div class="admin-auth">
+      <section class="access-card">
+        <div class="access-card__icon access-card__icon--error">
+          <span class="material-symbols-outlined" aria-hidden="true">error</span>
+        </div>
+        <div class="access-card__header">
+          <h1>管理后台</h1>
+          <p>${escapeHtml(message)}</p>
+        </div>
+        <button class="primary-button" type="button" id="admin-retry">
+          <span>重试</span>
+          <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+        </button>
+      </section>
+    </div>
+  `;
   document.getElementById("admin-retry")?.addEventListener("click", () => refreshData());
 }
 
 function renderLogin(message = "") {
-  renderShell(
-    `<section class="access-card">
-      <div class="access-card__icon">
-        <span class="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
-      </div>
-      <div class="access-card__header">
-        <h1>管理后台</h1>
-        <p>输入后台管理密钥，查看访问统计并管理分享文件。</p>
-      </div>
-      <form class="access-form" id="admin-login-form">
-        <label class="sr-only" for="admin-token-input">后台管理密钥</label>
-        <div class="password-field">
-          <span class="material-symbols-outlined password-field__icon" aria-hidden="true">key</span>
-          <input id="admin-token-input" name="adminToken" type="password" autocomplete="current-password" placeholder="输入后台管理密钥" required />
+  document.getElementById("app").innerHTML = `
+    <div class="admin-auth">
+      <section class="access-card">
+        <div class="access-card__icon">
+          <span class="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
         </div>
-        ${message ? `<p class="form-error" role="alert">${escapeHtml(message)}</p>` : ""}
-        <button class="primary-button" type="submit" ${state.pending ? "disabled" : ""}>
-          ${
-            state.pending
-              ? `<span class="material-symbols-outlined spin" aria-hidden="true">progress_activity</span><span>验证中...</span>`
-              : `<span>登录后台</span><span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>`
-          }
-        </button>
-      </form>
-    </section>`,
-    { centered: true }
-  );
+        <div class="access-card__header">
+          <h1>管理后台</h1>
+          <p>输入后台管理密钥，查看访问统计并管理分享文件。</p>
+        </div>
+        <form class="access-form" id="admin-login-form">
+          <label class="sr-only" for="admin-token-input">后台管理密钥</label>
+          <div class="password-field">
+            <span class="material-symbols-outlined password-field__icon" aria-hidden="true">key</span>
+            <input id="admin-token-input" name="adminToken" type="password" autocomplete="current-password" placeholder="输入后台管理密钥" required />
+          </div>
+          ${message ? `<p class="form-error" role="alert">${escapeHtml(message)}</p>` : ""}
+          <button class="primary-button" type="submit" ${state.pending ? "disabled" : ""}>
+            ${
+              state.pending
+                ? `<span class="material-symbols-outlined spin" aria-hidden="true">progress_activity</span><span>验证中...</span>`
+                : `<span>登录后台</span><span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>`
+            }
+          </button>
+        </form>
+      </section>
+    </div>
+  `;
 
   const form = document.getElementById("admin-login-form");
   const input = document.getElementById("admin-token-input");
@@ -214,31 +335,251 @@ function renderLogin(message = "") {
   input.focus();
 }
 
+/* ------------------------------------------------------------------ *
+ * 外壳
+ * ------------------------------------------------------------------ */
+
 function renderDashboard() {
+  state.loaded = true;
+  state.page = currentAdminPage();
+  renderAdminShell();
+  bindRouter();
+  bindOutsideClick();
+  renderAdminPage();
+  syncSidebarState();
+}
+
+function renderAdminShell() {
+  const app = document.getElementById("app");
+  app.innerHTML = `
+    <div class="admin-shell${state.sidebarCollapsed ? " admin-shell--collapsed" : ""}" id="admin-shell">
+      <aside class="admin-sidebar" id="admin-sidebar" aria-label="后台导航">
+        <div class="admin-sidebar__brand">
+          <a class="admin-brand" href="/" aria-label="AzureKilnShare 首页">
+            <span class="admin-brand__mark material-symbols-outlined" aria-hidden="true">shield</span>
+            <span class="admin-brand__text">AzureKiln<span>Share</span></span>
+          </a>
+          <button class="admin-sidebar__collapse icon-button" id="admin-sidebar-toggle" type="button" aria-controls="admin-sidebar" aria-expanded="true" aria-label="收起导航" title="收起导航">
+            <span class="material-symbols-outlined" aria-hidden="true">left_panel_close</span>
+          </button>
+        </div>
+        <nav class="admin-nav">
+          ${ADMIN_PAGES.map(renderNavItem).join("")}
+        </nav>
+      </aside>
+
+      <div class="admin-topbar">
+        <div class="admin-topbar__left">
+          <button class="admin-topbar__menu icon-button" id="admin-sidebar-toggle-inline" type="button" aria-controls="admin-sidebar" aria-label="展开导航" title="展开导航">
+            <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+          </button>
+          <div class="admin-topbar__title">
+            <span class="admin-topbar__eyebrow">管理后台</span>
+            <h1 id="admin-page-title">概览</h1>
+          </div>
+        </div>
+        <div class="admin-topbar__right">
+          <button class="icon-button" id="admin-refresh" type="button" aria-label="刷新数据" title="刷新数据">
+            <span class="material-symbols-outlined" aria-hidden="true">sync</span>
+          </button>
+          ${renderAccountMenu()}
+        </div>
+      </div>
+
+      <main class="admin-main" id="admin-main"></main>
+    </div>
+    <dialog class="import-dialog" id="admin-file-dialog"></dialog>
+  `;
+
+  const dialog = document.getElementById("admin-file-dialog");
+  dialog.addEventListener("click", onDialogClick);
+  dialog.addEventListener("submit", onDialogSubmit);
+  dialog.addEventListener("close", () => {
+    editingFile = null;
+    state.accountMenuOpen = false;
+  });
+
+  document.getElementById("admin-sidebar-toggle").addEventListener("click", () => toggleSidebar());
+  document.getElementById("admin-sidebar-toggle-inline").addEventListener("click", () => toggleSidebar());
+  document.getElementById("admin-refresh").addEventListener("click", () => refreshData());
+
+  document.querySelector(".admin-nav").addEventListener("click", (event) => {
+    const link = event.target.closest("[data-page]");
+    if (!link) {
+      return;
+    }
+    event.preventDefault();
+    navigateAdminPage(link.dataset.page);
+  });
+
+  document.getElementById("admin-account-button").addEventListener("click", (event) => {
+    event.stopPropagation();
+    state.accountMenuOpen = !state.accountMenuOpen;
+    syncAccountMenu();
+  });
+
+  document.querySelector(".admin-account__menu").addEventListener("click", (event) => {
+    const action = event.target.closest("[data-account-action]")?.dataset.accountAction;
+    if (action === "logout") {
+      logoutAdmin();
+    }
+  });
+
+  syncSidebarState();
+  syncAccountMenu();
+}
+
+function renderNavItem(page) {
+  return `
+    <a class="admin-nav__item" href="#${page.id}" data-page="${page.id}" title="${escapeHtml(page.label)}">
+      <span class="admin-nav__icon material-symbols-outlined" aria-hidden="true">${escapeHtml(page.icon)}</span>
+      <span class="admin-nav__text">${escapeHtml(page.label)}</span>
+    </a>
+  `;
+}
+
+function renderAccountMenu() {
+  return `
+    <div class="admin-account">
+      <button class="admin-account__button" id="admin-account-button" type="button" aria-haspopup="menu" aria-expanded="false">
+        <span class="admin-account__avatar material-symbols-outlined" aria-hidden="true">shield_person</span>
+        <span class="admin-account__meta">
+          <strong>管理员</strong>
+          <small>已登录会话</small>
+        </span>
+        <span class="admin-account__caret material-symbols-outlined" aria-hidden="true">expand_more</span>
+      </button>
+      <div class="admin-account__menu" role="menu" hidden>
+        <a class="admin-account__item" role="menuitem" href="/?admin=import">
+          <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+          <span>导入分享</span>
+        </a>
+        <button class="admin-account__item admin-account__item--danger" type="button" role="menuitem" data-account-action="logout">
+          <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+          <span>退出登录</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleSidebar() {
+  state.sidebarCollapsed = !state.sidebarCollapsed;
+  writeSidebarCollapsed(state.sidebarCollapsed);
+  syncSidebarState();
+}
+
+function syncSidebarState() {
+  const shell = document.getElementById("admin-shell");
+  if (!shell) {
+    return;
+  }
+  shell.classList.toggle("admin-shell--collapsed", state.sidebarCollapsed);
+
+  const toggle = document.getElementById("admin-sidebar-toggle");
+  if (toggle) {
+    const label = state.sidebarCollapsed ? "展开导航" : "收起导航";
+    toggle.setAttribute("aria-expanded", String(!state.sidebarCollapsed));
+    toggle.setAttribute("aria-label", label);
+    toggle.setAttribute("title", label);
+    const icon = toggle.querySelector(".material-symbols-outlined");
+    if (icon) {
+      icon.textContent = state.sidebarCollapsed ? "left_panel_open" : "left_panel_close";
+    }
+  }
+}
+
+function syncAccountMenu() {
+  const button = document.getElementById("admin-account-button");
+  const menu = document.querySelector(".admin-account__menu");
+  if (!button || !menu) {
+    return;
+  }
+  button.setAttribute("aria-expanded", String(state.accountMenuOpen));
+  menu.hidden = !state.accountMenuOpen;
+  document.querySelector(".admin-account")?.classList.toggle("admin-account--open", state.accountMenuOpen);
+}
+
+function logoutAdmin() {
+  state.token = "";
+  state.stats = null;
+  state.files = [];
+  state.loaded = false;
+  state.accountMenuOpen = false;
+  clearStoredAdminToken();
+  renderLogin();
+}
+
+/* ------------------------------------------------------------------ *
+ * 页面渲染入口
+ * ------------------------------------------------------------------ */
+
+function renderAdminPage() {
+  const main = document.getElementById("admin-main");
+  if (!main) {
+    return;
+  }
+  const page = ADMIN_PAGES.find((item) => item.id === state.page) || ADMIN_PAGES[0];
+  document.title = `${page.label} · AzureKilnShare 管理后台`;
+  const title = document.getElementById("admin-page-title");
+  if (title) {
+    title.textContent = page.label;
+  }
+  document.querySelectorAll(".admin-nav__item").forEach((item) => {
+    const active = item.dataset.page === page.id;
+    item.classList.toggle("admin-nav__item--active", active);
+    if (active) {
+      item.setAttribute("aria-current", "page");
+    } else {
+      item.removeAttribute("aria-current");
+    }
+  });
+
+  main.innerHTML = renderAdminPageContent(page.id);
+  bindAdminPageEvents(page.id);
+}
+
+function renderAdminPageContent(pageId) {
+  switch (pageId) {
+    case "files":
+      return renderFilesPage();
+    case "activity":
+      return renderActivityPage();
+    case "tokens":
+      return renderTokensPage();
+    case "overview":
+    default:
+      return renderOverviewPage();
+  }
+}
+
+function bindAdminPageEvents(pageId) {
+  if (pageId === "overview" || pageId === "files") {
+    const fileList = document.getElementById("admin-file-list");
+    fileList?.addEventListener("click", onFileListClick);
+  }
+}
+
+function renderAdminBreadcrumbOnly() {
+  // 弹窗打开期间数据变化时不要重建主体，避免输入丢失
+  const title = document.getElementById("admin-page-title");
+  if (title) {
+    const page = ADMIN_PAGES.find((item) => item.id === state.page) || ADMIN_PAGES[0];
+    title.textContent = page.label;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 页面：概览（pi-2 负责细化）
+ * ------------------------------------------------------------------ */
+
+function renderOverviewPage() {
   const totals = state.stats?.totals || {};
   const daily = state.stats?.daily || [];
   const recent = state.stats?.recent || [];
 
-  renderShell(`
-    <div class="import-layout">
-      <section class="import-panel">
-        <div class="import-heading">
-          <div>
-            <h1>管理后台</h1>
-            <p>查看访问与点击统计，管理分享文件与存储链接。</p>
-          </div>
-          <div class="admin-heading-actions">
-            <a class="secondary-button" href="/?admin=import">
-              <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
-              <span>导入分享</span>
-            </a>
-            <button class="icon-button" id="admin-logout" type="button" aria-label="退出登录">
-              <span class="material-symbols-outlined" aria-hidden="true">logout</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
+  return `
+    <div class="admin-page" data-admin-page="overview">
       <section class="admin-stats">
         ${renderStatCard("folder_shared", totals.files ?? 0, "分享文件总数", `${totals.activeFiles ?? 0} 个启用中`)}
         ${renderStatCard("visibility", totals.views ?? 0, "页面访问量", `今日 ${totals.todayViews ?? 0} 次`)}
@@ -247,9 +588,9 @@ function renderDashboard() {
         ${renderStatCard("link", state.files.reduce((sum, file) => sum + Number(file.storageCount || 0), 0), "存储链接总数", "全部文件合计")}
       </section>
 
-      <section class="import-panel">
-        <div class="section-heading">
-          <h2><span class="material-symbols-outlined" aria-hidden="true">trending_up</span>近 14 天趋势</h2>
+      <section class="admin-card admin-card--trend">
+        <div class="admin-card__head">
+          <h2>近 14 天趋势</h2>
           <span class="admin-trend-legend">
             <span><i class="admin-dot admin-dot--view"></i>访问</span>
             <span><i class="admin-dot admin-dot--click"></i>点击</span>
@@ -258,51 +599,80 @@ function renderDashboard() {
         ${renderTrend(daily)}
       </section>
 
-      <section class="import-panel">
-        <div class="section-heading">
-          <h2><span class="material-symbols-outlined" aria-hidden="true">database</span>分享文件</h2>
-          <span>${state.files.length} 个</span>
+      <section class="admin-card">
+        <div class="admin-card__head">
+          <h2>最近动态</h2>
+          <a class="admin-card__link" href="#activity" data-page="activity">查看全部</a>
+        </div>
+        <div class="admin-recent">
+          ${recent.slice(0, 8).map(renderRecentRow).join("") || `<p class="empty-preview">暂无访问记录。</p>`}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 页面：文件管理（pi-2 负责细化）
+ * ------------------------------------------------------------------ */
+
+function renderFilesPage() {
+  return `
+    <div class="admin-page" data-admin-page="files">
+      <section class="admin-card">
+        <div class="admin-card__head">
+          <h2>分享文件</h2>
+          <span class="admin-card__meta">${state.files.length} 个</span>
         </div>
         <div class="admin-file-list" id="admin-file-list">
           ${state.files.map(renderFileRow).join("") || `<p class="empty-preview">还没有分享文件，先去导入一个吧。</p>`}
         </div>
       </section>
+    </div>
+  `;
+}
 
-      <section class="import-panel">
-        <div class="section-heading">
-          <h2><span class="material-symbols-outlined" aria-hidden="true">history</span>最近动态</h2>
-          <button class="secondary-button secondary-button--compact" id="admin-refresh" type="button">
-            <span class="material-symbols-outlined" aria-hidden="true">sync</span>
-            <span>刷新</span>
-          </button>
+/* ------------------------------------------------------------------ *
+ * 页面：访问动态（pi-2 负责细化）
+ * ------------------------------------------------------------------ */
+
+function renderActivityPage() {
+  const recent = state.stats?.recent || [];
+  return `
+    <div class="admin-page" data-admin-page="activity">
+      <section class="admin-card">
+        <div class="admin-card__head">
+          <h2>最近动态</h2>
+          <span class="admin-card__meta">${recent.length} 条</span>
         </div>
         <div class="admin-recent">
           ${recent.map(renderRecentRow).join("") || `<p class="empty-preview">暂无访问记录。</p>`}
         </div>
       </section>
     </div>
-
-    <dialog class="import-dialog" id="admin-file-dialog"></dialog>
-  `);
-
-  document.getElementById("admin-logout").addEventListener("click", () => {
-    state.token = "";
-    clearStoredAdminToken();
-    renderLogin();
-  });
-  document.getElementById("admin-refresh").addEventListener("click", () => refreshData());
-
-  const fileList = document.getElementById("admin-file-list");
-  fileList.addEventListener("click", onFileListClick);
-
-  const dialog = document.getElementById("admin-file-dialog");
-  dialog.addEventListener("click", onDialogClick);
-  dialog.addEventListener("submit", onDialogSubmit);
-  dialog.addEventListener("close", () => {
-    editingFile = null;
-    renderDashboard();
-  });
+  `;
 }
+
+/* ------------------------------------------------------------------ *
+ * 页面：令牌管理（pi-4 负责填充）
+ * ------------------------------------------------------------------ */
+
+function renderTokensPage() {
+  return `
+    <div class="admin-page" data-admin-page="tokens">
+      <section class="admin-card">
+        <div class="admin-card__head">
+          <h2>令牌管理</h2>
+        </div>
+        <p class="empty-preview">令牌管理即将上线，届时可在此创建、停用与删除管理令牌。</p>
+      </section>
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 组件：统计 / 趋势 / 列表行（pi-2 可继续细化）
+ * ------------------------------------------------------------------ */
 
 function renderStatCard(icon, value, label, hint) {
   return `
@@ -396,6 +766,10 @@ function renderRecentRow(entry) {
   `;
 }
 
+/* ------------------------------------------------------------------ *
+ * 文件操作（pi-2 负责细化）
+ * ------------------------------------------------------------------ */
+
 async function onFileListClick(event) {
   const editButton = event.target.closest("[data-edit-file]");
   const toggleButton = event.target.closest("[data-toggle-file]");
@@ -417,7 +791,7 @@ async function onFileListClick(event) {
         method: "PUT",
         body: { isActive: !file.isActive }
       });
-      await refreshData();
+      await refreshData({ silent: true });
     } catch (error) {
       if (!handleAuthError(error)) {
         window.alert(error.message);
@@ -438,7 +812,7 @@ async function onFileListClick(event) {
     deleteButton.disabled = true;
     try {
       await adminApi(`/admin/files/${encodeURIComponent(file.id)}`, { method: "DELETE" });
-      await refreshData();
+      await refreshData({ silent: true });
     } catch (error) {
       if (!handleAuthError(error)) {
         window.alert(error.message);
