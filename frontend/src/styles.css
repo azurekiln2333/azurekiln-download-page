@@ -1285,7 +1285,7 @@ a {
 .admin-stat-card {
   padding: 18px 20px;
   border: 1px solid var(--surface-container);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   display: grid;
   gap: 4px;
   align-content: start;
@@ -1297,7 +1297,7 @@ a {
   width: 40px;
   height: 40px;
   margin-bottom: 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1376,7 +1376,7 @@ a {
 .admin-trend__stack {
   flex: 1;
   min-height: 140px;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -1418,7 +1418,7 @@ a {
 .admin-file-row {
   padding: 14px 16px;
   border: 1px solid var(--outline-variant);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1433,7 +1433,7 @@ a {
 .admin-file-row__icon {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1507,7 +1507,7 @@ a {
 
 .admin-recent-row {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1517,7 +1517,7 @@ a {
 .admin-recent-row__icon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1590,7 +1590,7 @@ a {
 .admin-link-row {
   padding: 14px;
   border: 1px solid var(--outline-variant);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: grid;
   gap: 12px;
   background: var(--surface-container-low);
@@ -1620,7 +1620,7 @@ a {
 .admin-link-row__title .material-symbols-outlined {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1655,7 +1655,7 @@ a {
 .admin-link-add {
   padding: 14px;
   border: 1px dashed var(--outline-variant);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: grid;
   gap: 12px;
 }
@@ -1674,7 +1674,7 @@ a {
 
 .admin-share-urls code {
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
   background: var(--surface-container-low);
   color: var(--on-surface-variant);
@@ -1693,7 +1693,7 @@ a {
 
 .admin-visitor-row {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
