@@ -1007,10 +1007,16 @@ a {
   max-height: min(760px, calc(100vh - 32px));
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius);
+  overflow: hidden;
   background: var(--surface-container-lowest);
   color: var(--on-surface);
   box-shadow: var(--shadow-2);
+}
+
+/* 文件编辑弹窗：头部 + 分区切换 + 可滚动面板 */
+#admin-file-dialog {
+  width: min(820px, calc(100vw - 32px));
 }
 
 .import-dialog::backdrop {
@@ -2185,22 +2191,123 @@ a {
 }
 
 .admin-dialog__body {
-  padding: 28px;
+  padding: 0;
   display: grid;
-  gap: 20px;
+  gap: 0;
+  max-height: inherit;
   overflow-y: auto;
+}
+
+.admin-dialog__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 18px 20px 14px;
+  align-items: flex-start;
+  background: var(--surface-container-lowest);
+}
+
+.admin-dialog__identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-dialog__icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 88, 188, 0.08);
+  color: var(--primary);
+}
+
+.admin-dialog__icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.admin-dialog__identity h2 {
+  margin: 0;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--on-surface);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.admin-dialog__identity p {
+  margin: 2px 0 0;
+  color: var(--outline);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+/* 弹窗分区切换：替代原先堆叠的三段标题 + 分割线 */
+.admin-dialog-tabs {
+  position: sticky;
+  top: 72px;
+  z-index: 1;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--surface-container);
+  display: flex;
+  gap: 4px;
+  background: var(--surface-container-lowest);
+}
+
+.admin-dialog-tabs__item {
+  padding: 8px 10px 10px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--outline);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+
+.admin-dialog-tabs__item .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.admin-dialog-tabs__item:hover {
+  color: var(--on-surface);
+}
+
+.admin-dialog-tabs__item--active {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+
+.admin-dialog-panel {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.admin-dialog-panel[hidden] {
+  display: none;
 }
 
 .admin-file-form {
   display: grid;
   gap: 16px;
-}
-
-.admin-dialog-section {
-  padding-top: 20px;
-  border-top: 1px solid var(--surface-container);
-  display: grid;
-  gap: 14px;
 }
 
 .admin-link-list {
@@ -2283,8 +2390,8 @@ a {
 
 .admin-link-add__title {
   color: var(--on-surface);
-  font-size: 15px;
-  line-height: 20px;
+  font-size: 14px;
+  line-height: 18px;
   font-weight: 700;
 }
 
@@ -2307,51 +2414,9 @@ a {
   color: var(--outline);
 }
 
-.admin-visitor-list {
-  display: grid;
-  gap: 8px;
-}
-
-.admin-visitor-row {
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  background: var(--surface-container-low);
-}
-
-.admin-visitor-row__ip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--on-surface);
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.admin-visitor-row__ip .material-symbols-outlined {
-  font-size: 16px;
-  color: var(--primary);
-}
-
-.admin-visitor-row__meta {
-  color: var(--on-surface-variant);
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 600;
-}
-
-.admin-visitor-row time {
-  margin-left: auto;
-  color: var(--outline);
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.admin-table--visitors td {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 @media (max-width: 900px) {
@@ -2556,7 +2621,16 @@ a {
   }
 
   .admin-dialog__body {
-    padding: 20px;
+    padding: 0;
+  }
+
+  .admin-dialog__header,
+  .admin-dialog-tabs {
+    padding-inline: 14px;
+  }
+
+  .admin-dialog-panel {
+    padding: 14px;
   }
 
   .admin-account__meta,

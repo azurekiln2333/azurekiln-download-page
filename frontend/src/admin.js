@@ -1472,122 +1472,207 @@ async function openFileEditor(fileId) {
 function renderDialogContent(file) {
   const dialog = document.getElementById("admin-file-dialog");
   dialog.innerHTML = `
-    <div class="admin-dialog__body">
-      <div class="import-dialog__header">
-        <div>
-          <h2>编辑分享</h2>
-          <p>${escapeHtml(file.id)} · 更新于 ${formatDate(file.updatedAt)}</p>
+    <div class="admin-dialog__body" data-admin-dialog="file">
+      <div class="import-dialog__header admin-dialog__header">
+        <div class="admin-dialog__identity">
+          <span class="admin-dialog__icon">${renderIcon(file.icon)}</span>
+          <div>
+            <h2>${escapeHtml(file.title)}</h2>
+            <p>${escapeHtml(file.id)} · 更新于 ${formatDate(file.updatedAt)}</p>
+          </div>
         </div>
         <button class="icon-button" id="admin-dialog-close" type="button" aria-label="关闭">
           <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
       </div>
 
-      <form class="admin-file-form" id="admin-file-form">
-        <div class="field-grid">
-          <label class="field">
-            <span>标题</span>
-            <input name="title" type="text" value="${escapeHtml(file.title)}" required />
-          </label>
-          <label class="field">
-            <span>文件名</span>
-            <input name="fileName" type="text" value="${escapeHtml(file.name || "")}" />
-          </label>
-        </div>
-        <div class="field-grid">
-          <label class="field">
-            <span>大小标签</span>
-            <input name="sizeLabel" type="text" value="${escapeHtml(file.sizeLabel || "")}" placeholder="例如 1.2 GB" />
-          </label>
-          <label class="field">
-            <span>过期时间</span>
-            <input name="expiresAt" type="datetime-local" value="${escapeHtml(toLocalInputValue(file.expiresAt))}" />
-          </label>
-        </div>
-        <label class="field">
-          <span>说明</span>
-          <input name="description" type="text" value="${escapeHtml(file.description || "")}" placeholder="显示在下载页的文件说明" />
-        </label>
-        <div class="field-grid">
-          <label class="field">
-            <span>提取码</span>
-            <input name="accessCode" type="text" placeholder="${file.protected ? "已设置，留空保持不变" : "未设置"}" autocomplete="new-password" />
-          </label>
-          <label class="toggle-field">
-            <input name="isActive" type="checkbox" ${file.isActive ? "checked" : ""} />
-            <span>启用分享</span>
-          </label>
-        </div>
-        <label class="toggle-field">
-          <input name="clearAccessCode" type="checkbox" />
-          <span>清除提取码（访问页面将不再需要提取码）</span>
-        </label>
-        <div class="admin-share-urls">
-          <code>${escapeHtml(buildShareUrl(file.id))}</code>
-          ${file.shortUrl ? `<code>${escapeHtml(file.shortUrl)}</code>` : `<code class="admin-share-urls__muted">短链未生成</code>`}
-        </div>
-        <p class="form-error" id="admin-file-form-error" role="alert" hidden></p>
-        <div class="import-actions">
-          <button class="primary-button primary-button--wide" type="submit">
-            <span class="material-symbols-outlined" aria-hidden="true">save</span>
-            <span>保存文件信息</span>
-          </button>
-        </div>
-      </form>
-
-      <div class="admin-dialog-section">
-        <div class="section-heading">
-          <h2><span class="material-symbols-outlined" aria-hidden="true">link</span>存储链接</h2>
-          <span>${file.links.length} 条</span>
-        </div>
-        <div class="admin-link-list" id="admin-link-list">
-          ${file.links.map(renderLinkRow).join("") || `<p class="empty-preview">还没有存储链接。</p>`}
-        </div>
-        <form class="admin-link-add" id="admin-link-add-form">
-          <div class="admin-link-add__title">新增链接</div>
-          <label class="field">
-            <span>链接 URL</span>
-            <input name="url" type="text" required placeholder="https://..." />
-          </label>
-          <div class="field-grid">
-            <label class="field">
-              <span>网盘名称</span>
-              <input name="storageName" type="text" placeholder="例如 123云盘，留空自动识别" />
-            </label>
-            <label class="field">
-              <span>提取码</span>
-              <input name="extractCode" type="text" placeholder="可留空" />
-            </label>
-          </div>
-          <label class="field">
-            <span>说明（按钮文字）</span>
-            <input name="note" type="text" placeholder="留空显示为 打开" />
-          </label>
-          <p class="form-error" id="admin-link-add-error" role="alert" hidden></p>
-          <div class="import-actions">
-            <button class="secondary-button" type="submit">
-              <span class="material-symbols-outlined" aria-hidden="true">add_link</span>
-              <span>添加链接</span>
-            </button>
-          </div>
-        </form>
+      <div class="admin-dialog-tabs" role="tablist" aria-label="编辑弹窗分区">
+        ${renderDialogTab("info", "文件信息", "description")}
+        ${renderDialogTab("links", `存储链接 ${file.links.length}`, "link")}
+        ${renderDialogTab("visitors", `IP 访客 ${editingVisitors.length}`, "group")}
       </div>
 
-      <div class="admin-dialog-section">
-        <div class="section-heading">
-          <h2><span class="material-symbols-outlined" aria-hidden="true">group</span>IP 访客</h2>
-          <span>${editingVisitors.length} 个独立 IP</span>
-        </div>
-        <div class="admin-visitor-list">
-          ${editingVisitors.map(renderVisitorRow).join("") || `<p class="empty-preview">暂无访客记录。</p>`}
-        </div>
-      </div>
+      <div class="admin-dialog-panel" data-dialog-panel="info"></div>
+      <div class="admin-dialog-panel" data-dialog-panel="links" hidden></div>
+      <div class="admin-dialog-panel" data-dialog-panel="visitors" hidden></div>
     </div>
   `;
+
+  renderDialogPanels(file);
 
   document.getElementById("admin-dialog-close").addEventListener("click", () => {
     dialog.close();
   });
+
+  dialog.querySelector(".admin-dialog-tabs").addEventListener("click", (event) => {
+    const tab = event.target.closest("[data-dialog-tab]");
+    if (tab) {
+      selectDialogTab(tab.dataset.dialogTab);
+    }
+  });
+}
+
+function renderDialogTab(id, label, icon) {
+  return `
+    <button class="admin-dialog-tabs__item" type="button" role="tab" aria-selected="false" data-dialog-tab="${id}">
+      <span class="material-symbols-outlined" aria-hidden="true">${escapeHtml(icon)}</span>
+      <span>${escapeHtml(label)}</span>
+    </button>
+  `;
+}
+
+function selectDialogTab(id, options = {}) {
+  const dialog = document.getElementById("admin-file-dialog");
+  if (!dialog) {
+    return;
+  }
+  dialog.querySelectorAll("[data-dialog-tab]").forEach((tab) => {
+    const active = tab.dataset.dialogTab === id;
+    tab.classList.toggle("admin-dialog-tabs__item--active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
+  dialog.querySelectorAll("[data-dialog-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.dialogPanel !== id;
+  });
+  if (options.focus) {
+    dialog.querySelector(`[data-dialog-panel="${id}"] input, [data-dialog-panel="${id}"] button`)?.focus();
+  }
+}
+
+function renderDialogPanels(file, options = {}) {
+  const dialog = document.getElementById("admin-file-dialog");
+  if (!dialog) {
+    return;
+  }
+  const info = dialog.querySelector('[data-dialog-panel="info"]');
+  const links = dialog.querySelector('[data-dialog-panel="links"]');
+  const visitors = dialog.querySelector('[data-dialog-panel="visitors"]');
+  if (!info || !links || !visitors) {
+    return;
+  }
+  info.innerHTML = renderFileInfoForm(file);
+  links.innerHTML = renderLinksPanel(file);
+  visitors.innerHTML = renderVisitorsPanel();
+
+  // 保持当前激活的分区，默认停在文件信息
+  const active = options.activeTab || dialog.dataset.activeTab || "info";
+  selectDialogTab(active);
+  dialog.dataset.activeTab = active;
+}
+
+function renderFileInfoForm(file) {
+  return `
+    <form class="admin-file-form" id="admin-file-form">
+      <div class="field-grid">
+        <label class="field">
+          <span>标题</span>
+          <input name="title" type="text" value="${escapeHtml(file.title)}" required />
+        </label>
+        <label class="field">
+          <span>文件名</span>
+          <input name="fileName" type="text" value="${escapeHtml(file.name || "")}" />
+        </label>
+      </div>
+      <div class="field-grid">
+        <label class="field">
+          <span>大小标签</span>
+          <input name="sizeLabel" type="text" value="${escapeHtml(file.sizeLabel || "")}" placeholder="例如 1.2 GB" />
+        </label>
+        <label class="field">
+          <span>过期时间</span>
+          <input name="expiresAt" type="datetime-local" value="${escapeHtml(toLocalInputValue(file.expiresAt))}" />
+        </label>
+      </div>
+      <label class="field">
+        <span>说明</span>
+        <input name="description" type="text" value="${escapeHtml(file.description || "")}" placeholder="显示在下载页的文件说明" />
+      </label>
+      <div class="field-grid">
+        <label class="field">
+          <span>提取码</span>
+          <input name="accessCode" type="text" placeholder="${file.protected ? "已设置，留空保持不变" : "未设置"}" autocomplete="new-password" />
+        </label>
+        <label class="toggle-field">
+          <input name="isActive" type="checkbox" ${file.isActive ? "checked" : ""} />
+          <span>启用分享</span>
+        </label>
+      </div>
+      <label class="toggle-field">
+        <input name="clearAccessCode" type="checkbox" />
+        <span>清除提取码（访问页面将不再需要提取码）</span>
+      </label>
+      <div class="admin-share-urls">
+        <code>${escapeHtml(buildShareUrl(file.id))}</code>
+        ${file.shortUrl ? `<code>${escapeHtml(file.shortUrl)}</code>` : `<code class="admin-share-urls__muted">短链未生成</code>`}
+      </div>
+      <p class="form-error" id="admin-file-form-error" role="alert" hidden></p>
+      <div class="import-actions">
+        <button class="primary-button" type="submit">
+          <span class="material-symbols-outlined" aria-hidden="true">save</span>
+          <span>保存文件信息</span>
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderLinksPanel(file) {
+  return `
+    <div class="admin-link-list" id="admin-link-list">
+      ${file.links.map(renderLinkRow).join("") || `<p class="empty-preview">还没有存储链接。</p>`}
+    </div>
+    <form class="admin-link-add" id="admin-link-add-form">
+      <div class="admin-link-add__title">新增链接</div>
+      <label class="field">
+        <span>链接 URL</span>
+        <input name="url" type="text" required placeholder="https://..." />
+      </label>
+      <div class="field-grid">
+        <label class="field">
+          <span>网盘名称</span>
+          <input name="storageName" type="text" placeholder="例如 123云盘，留空自动识别" />
+        </label>
+        <label class="field">
+          <span>提取码</span>
+          <input name="extractCode" type="text" placeholder="可留空" />
+        </label>
+      </div>
+      <label class="field">
+        <span>说明（按钮文字）</span>
+        <input name="note" type="text" placeholder="留空显示为 打开" />
+      </label>
+      <p class="form-error" id="admin-link-add-error" role="alert" hidden></p>
+      <div class="import-actions">
+        <button class="secondary-button" type="submit">
+          <span class="material-symbols-outlined" aria-hidden="true">add_link</span>
+          <span>添加链接</span>
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderVisitorsPanel() {
+  if (!editingVisitors.length) {
+    return `<p class="empty-preview">暂无访客记录。</p>`;
+  }
+  return `
+    <div class="admin-table-wrap">
+      <table class="admin-table admin-table--visitors">
+        <thead>
+          <tr>
+            <th scope="col">IP 地址</th>
+            <th scope="col" class="admin-table__num">访问</th>
+            <th scope="col" class="admin-table__num">点击</th>
+            <th scope="col" class="admin-table__right">最近访问</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${editingVisitors.map(renderVisitorRow).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderLinkRow(link) {
@@ -1690,7 +1775,7 @@ async function saveFileForm(form) {
       body
     });
     editingFile = file;
-    renderDialogContent(file);
+    renderDialogPanels(file, { activeTab: "info" });
     await refreshDashboardData();
     const savedNote = document.createElement("p");
     savedNote.className = "success-box";
@@ -1815,20 +1900,37 @@ async function reloadEditingFile() {
   editingVisitors = visitorsPayload.visitors || [];
   const dialog = document.getElementById("admin-file-dialog");
   if (dialog.open) {
-    renderDialogContent(editingFile);
+    // 保留当前分区与滚动位置，避免保存后跳回顶部
+    renderDialogPanels(editingFile, { activeTab: dialog.dataset.activeTab || "info" });
+    syncDialogTabCounts();
   }
+}
+
+function syncDialogTabCounts() {
+  const dialog = document.getElementById("admin-file-dialog");
+  if (!dialog || !editingFile) {
+    return;
+  }
+  const counts = { info: "文件信息", links: `存储链接 ${editingFile.links.length}`, visitors: `IP 访客 ${editingVisitors.length}` };
+  dialog.querySelectorAll("[data-dialog-tab]").forEach((tab) => {
+    const label = counts[tab.dataset.dialogTab];
+    const text = tab.querySelector("span:last-child");
+    if (label && text) {
+      text.textContent = label;
+    }
+  });
 }
 
 function renderVisitorRow(visitor) {
   return `
-    <div class="admin-visitor-row">
-      <span class="admin-visitor-row__ip">
-        <span class="material-symbols-outlined" aria-hidden="true">public</span>
-        ${escapeHtml(visitor.ip)}
-      </span>
-      <span class="admin-visitor-row__meta">访问 ${visitor.viewCount} 次 · 点击 ${visitor.clickCount} 次</span>
-      <time title="首次访问：${escapeHtml(formatDateTime(visitor.firstSeenAt))}">最近 ${escapeHtml(formatDateTime(visitor.lastSeenAt))}</time>
-    </div>
+    <tr class="admin-table__row">
+      <td class="admin-table__mono">${escapeHtml(visitor.ip)}</td>
+      <td class="admin-table__num">${Number(visitor.viewCount || 0).toLocaleString("zh-CN")}</td>
+      <td class="admin-table__num">${Number(visitor.clickCount || 0).toLocaleString("zh-CN")}</td>
+      <td class="admin-table__right admin-table__secondary" title="首次访问：${escapeHtml(formatDateTime(visitor.firstSeenAt))}">
+        ${escapeHtml(formatDateTime(visitor.lastSeenAt))}
+      </td>
+    </tr>
   `;
 }
 
