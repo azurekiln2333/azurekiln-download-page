@@ -815,13 +815,15 @@ function renderTokensPage() {
     <div class="admin-page" data-admin-page="tokens">
       <section class="admin-card">
         <div class="admin-card__head">
-          <h2>管理令牌</h2>
+          <div class="admin-card__title">
+            <h2>管理令牌</h2>
+            <p>调用 <code>/api/admin/*</code> 的凭证；明文只在创建时显示一次</p>
+          </div>
           <button class="primary-button primary-button--compact" id="admin-token-create" type="button">
             <span class="material-symbols-outlined" aria-hidden="true">add</span>
             <span>新建令牌</span>
           </button>
         </div>
-        <p class="admin-card__hint">令牌用于脚本或第三方工具调用 <code>/api/admin/*</code>；明文只在创建时显示一次。</p>
         ${renderTokenList()}
       </section>
 

@@ -2651,15 +2651,10 @@ a {
  * 令牌管理页
  * ------------------------------------------------------------------ */
 
-.admin-card__hint {
-  margin: -6px 0 0;
-  color: var(--outline);
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 600;
+.admin-card__title p code {
+  font-family: var(--font-mono);
 }
 
-.admin-card__hint code,
 .admin-token-row__prefix {
   font-family: var(--font-mono);
 }
