@@ -762,8 +762,15 @@ function renderTokenRow(token) {
 function bindTokensPageEvents() {
   document.getElementById("admin-token-create")?.addEventListener("click", () => openTokenDialog("create"));
 
-  document.querySelector(".admin-token-list")?.addEventListener("click", onTokenListClick);
-  document.querySelector('[data-token-action="reload"]')?.addEventListener("click", () => loadAdminTokens());
+  // 列表内容会被局部重绘，事件统一挂在外层容器上（只用 addEventListener 绑一次）
+  const card = document.querySelector("[data-admin-page='tokens'] .admin-card");
+  card?.addEventListener("click", (event) => {
+    if (event.target.closest('[data-token-action="reload"]')) {
+      loadAdminTokens();
+      return;
+    }
+    onTokenListClick(event);
+  });
 
   const dialog = document.getElementById("admin-token-dialog");
   if (!dialog) {
@@ -802,24 +809,23 @@ async function loadAdminTokens() {
 }
 
 function renderTokenListInPlace() {
-  const list = document.querySelector("[data-admin-page='tokens'] .admin-card");
-  if (!list) {
+  const card = document.querySelector("[data-admin-page='tokens'] .admin-card");
+  if (!card) {
     return;
   }
   // 只替换列表容器，避免重建侧栏与顶栏
-  let container = document.getElementById("admin-token-list-slot");
-  if (!container) {
-    const old = list.querySelector(".admin-token-list, .empty-preview, .admin-token-error");
-    if (!old) {
-      return;
+  let slot = card.querySelector(".admin-token-slot");
+  if (!slot) {
+    slot = document.createElement("div");
+    slot.className = "admin-token-slot";
+    const previous = card.querySelector(".admin-token-list, .empty-preview, .admin-token-error");
+    if (previous) {
+      previous.replaceWith(slot);
+    } else {
+      card.append(slot);
     }
-    container = document.createElement("div");
-    container.id = "admin-token-list-slot";
-    old.replaceWith(container);
   }
-  container.innerHTML = renderTokenList();
-  container.querySelector('[data-token-action="reload"]')?.addEventListener("click", () => loadAdminTokens());
-  container.querySelector(".admin-token-list")?.addEventListener("click", onTokenListClick);
+  slot.innerHTML = renderTokenList();
 }
 
 async function onTokenListClick(event) {
