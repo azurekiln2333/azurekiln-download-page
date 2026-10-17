@@ -240,15 +240,18 @@ async function requireAdmin(req) {
   }
 
   let rows = [];
+  let tableMissing = false;
   try {
     [rows] = await getPool().execute(
       `SELECT id, name, token_hash FROM admin_tokens WHERE is_active = 1`
     );
   } catch (error) {
     if (error.code === "ER_NO_SUCH_TABLE") {
-      throw new HttpError(503, "admin_tokens 表不存在，请执行 backend/migrations/add_admin_tokens.sql");
+      tableMissing = true;
+    } else if (!getEnvAdminToken()) {
+      throw error;
     }
-    throw error;
+    // env 超级令牌已启用时数据库异常不应阻断后台，退化为仅 env 令牌可用。
   }
 
   const tokenHash = hashAdminToken(token);
@@ -262,7 +265,12 @@ async function requireAdmin(req) {
   }
 
   if (!getEnvAdminToken()) {
-    throw new HttpError(503, "后台令牌未配置，请设置 ADMIN_IMPORT_TOKEN 或在令牌管理中创建令牌");
+    throw new HttpError(
+      503,
+      tableMissing
+        ? "admin_tokens 表不存在，请执行 backend/migrations/add_admin_tokens.sql"
+        : "后台令牌未配置，请设置 ADMIN_IMPORT_TOKEN 或在令牌管理中创建令牌"
+    );
   }
   throw new HttpError(401, "后台令牌不正确");
 }
