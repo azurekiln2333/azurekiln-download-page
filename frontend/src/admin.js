@@ -1,16 +1,42 @@
 import { escapeHtml, formatDate, formatDateTime, renderIcon, renderShell } from "./shared.js";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-const ADMIN_TOKEN_STORAGE_KEY = "azurekilnshare:admin-token";
+const ADMIN_TOKEN_STORAGE_KEY = "azurekilnshare:admin-session-token";
+const LEGACY_ADMIN_TOKEN_SESSION_KEY = "azurekilnshare:admin-token";
 
 const state = {
-  token: window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "",
+  token: readStoredAdminToken(),
   stats: null,
   files: [],
   pending: false
 };
 let editingFile = null;
 let editingVisitors = [];
+
+function readStoredAdminToken() {
+  const token = window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+  if (token) {
+    return token;
+  }
+  // Migrate the legacy key once, then drop it so the import page stops reusing it.
+  const legacy = window.sessionStorage.getItem(LEGACY_ADMIN_TOKEN_SESSION_KEY);
+  if (!legacy) {
+    return "";
+  }
+  window.sessionStorage.removeItem(LEGACY_ADMIN_TOKEN_SESSION_KEY);
+  window.sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, legacy);
+  return legacy;
+}
+
+function storeAdminToken(token) {
+  window.sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+  window.sessionStorage.removeItem(LEGACY_ADMIN_TOKEN_SESSION_KEY);
+}
+
+function clearStoredAdminToken() {
+  window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+  window.sessionStorage.removeItem(LEGACY_ADMIN_TOKEN_SESSION_KEY);
+}
 
 export function renderAdminDashboard() {
   if (!state.token) {
@@ -59,7 +85,7 @@ function handleAuthError(error) {
   }
   state.token = "";
   state.pending = false;
-  window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+  clearStoredAdminToken();
   renderLogin(error.message);
   return true;
 }
@@ -175,7 +201,7 @@ function renderLogin(message = "") {
     renderLogin();
     try {
       await adminApi("/admin/stats");
-      window.sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+      storeAdminToken(token);
       state.pending = false;
       await refreshData();
     } catch (error) {
@@ -261,7 +287,7 @@ function renderDashboard() {
 
   document.getElementById("admin-logout").addEventListener("click", () => {
     state.token = "";
-    window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    clearStoredAdminToken();
     renderLogin();
   });
   document.getElementById("admin-refresh").addEventListener("click", () => refreshData());
