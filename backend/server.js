@@ -239,10 +239,19 @@ async function requireAdmin(req) {
     return { kind: "env", id: 0, name: "ADMIN_IMPORT_TOKEN" };
   }
 
+  let rows = [];
+  try {
+    [rows] = await getPool().execute(
+      `SELECT id, name, token_hash FROM admin_tokens WHERE is_active = 1`
+    );
+  } catch (error) {
+    if (error.code === "ER_NO_SUCH_TABLE") {
+      throw new HttpError(503, "admin_tokens 表不存在，请执行 backend/migrations/add_admin_tokens.sql");
+    }
+    throw error;
+  }
+
   const tokenHash = hashAdminToken(token);
-  const [rows] = await getPool().execute(
-    `SELECT id, name, token_hash FROM admin_tokens WHERE is_active = 1`
-  );
   const hit = rows.find((row) => timingSafeHexEqual(row.token_hash, tokenHash));
   if (hit) {
     await getPool().execute(
@@ -252,10 +261,161 @@ async function requireAdmin(req) {
     return { kind: "db", id: Number(hit.id), name: hit.name };
   }
 
-  if (!getEnvAdminToken() && !rows.length) {
+  if (!getEnvAdminToken()) {
     throw new HttpError(503, "后台令牌未配置，请设置 ADMIN_IMPORT_TOKEN 或在令牌管理中创建令牌");
   }
   throw new HttpError(401, "后台令牌不正确");
+}
+
+const ADMIN_TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const ADMIN_TOKEN_PREFIX = "ak_";
+
+function generateAdminToken() {
+  let value = "";
+  for (let index = 0; index < 40; index += 1) {
+    value += ADMIN_TOKEN_ALPHABET[crypto.randomInt(ADMIN_TOKEN_ALPHABET.length)];
+  }
+  return `${ADMIN_TOKEN_PREFIX}${value}`;
+}
+
+function normalizeAdminTokenId(value) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new HttpError(400, "令牌 ID 不正确");
+  }
+  return id;
+}
+
+function normalizeAdminTokenName(value) {
+  const name = String(value || "").trim();
+  if (!name) {
+    throw new HttpError(400, "令牌名称不能为空");
+  }
+  if (name.length > 128) {
+    throw new HttpError(400, "令牌名称不能超过 128 个字符");
+  }
+  return name;
+}
+
+function formatAdminTokenLastUsed(value) {
+  if (!value) {
+    return "从未使用";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "从未使用";
+  }
+  const pad = (input) => String(input).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toAdminToken(row) {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    tokenPrefix: row.token_prefix || "",
+    isActive: Boolean(row.is_active),
+    createdAt: toIsoDate(row.created_at),
+    lastUsedAt: toIsoDate(row.last_used_at),
+    lastUsedLabel: formatAdminTokenLastUsed(row.last_used_at),
+    isEnvToken: false
+  };
+}
+
+function envAdminTokenItem() {
+  const expected = getEnvAdminToken();
+  if (!expected) {
+    return null;
+  }
+  return {
+    id: 0,
+    name: "环境变量超级令牌",
+    tokenPrefix: `${expected.slice(0, 8)}${expected.length > 8 ? "…" : ""}`,
+    isActive: true,
+    createdAt: null,
+    lastUsedAt: null,
+    lastUsedLabel: "始终可用",
+    isEnvToken: true
+  };
+}
+
+async function listAdminTokens() {
+  const [rows] = await getPool().query(
+    `SELECT id, name, token_prefix, is_active, created_at, last_used_at
+     FROM admin_tokens
+     ORDER BY id DESC`
+  );
+  const items = rows.map(toAdminToken);
+  const envItem = envAdminTokenItem();
+  return {
+    tokens: envItem ? [envItem, ...items] : items,
+    envTokenEnabled: Boolean(getEnvAdminToken())
+  };
+}
+
+async function createAdminToken(body) {
+  const name = normalizeAdminTokenName(body.name);
+  const token = generateAdminToken();
+  const tokenHash = hashAdminToken(token);
+  const tokenPrefix = token.slice(0, 16);
+
+  const [result] = await getPool().execute(
+    `INSERT INTO admin_tokens (name, token_hash, token_prefix, is_active) VALUES (?, ?, ?, 1)`,
+    [name, tokenHash, tokenPrefix]
+  );
+
+  const [rows] = await getPool().execute(
+    `SELECT id, name, token_prefix, is_active, created_at, last_used_at FROM admin_tokens WHERE id = ? LIMIT 1`,
+    [result.insertId]
+  );
+
+  return {
+    token,
+    item: toAdminToken(rows[0]),
+    message: "令牌只显示这一次，请立即保存"
+  };
+}
+
+async function getAdminTokenRow(id) {
+  const [rows] = await getPool().execute(
+    `SELECT id, name, token_prefix, is_active, created_at, last_used_at FROM admin_tokens WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  if (!rows.length) {
+    throw new HttpError(404, "令牌不存在");
+  }
+  return rows[0];
+}
+
+async function updateAdminToken(id, body) {
+  const updates = [];
+  const params = [];
+
+  if (body.name !== undefined) {
+    updates.push("name = ?");
+    params.push(normalizeAdminTokenName(body.name));
+  }
+  if (body.isActive !== undefined) {
+    updates.push("is_active = ?");
+    params.push(body.isActive ? 1 : 0);
+  }
+
+  if (!updates.length) {
+    throw new HttpError(400, "没有需要更新的字段");
+  }
+
+  await getAdminTokenRow(id);
+  params.push(id);
+  await getPool().execute(`UPDATE admin_tokens SET ${updates.join(", ")} WHERE id = ?`, params);
+
+  return { item: toAdminToken(await getAdminTokenRow(id)) };
+}
+
+async function deleteAdminToken(id) {
+  const [result] = await getPool().execute(`DELETE FROM admin_tokens WHERE id = ?`, [id]);
+  if (!result.affectedRows) {
+    throw new HttpError(404, "令牌不存在");
+  }
 }
 
 function randomFileId(length = 12) {
@@ -1364,6 +1524,36 @@ async function handleApi(req, res, requestUrl) {
       }
       if (req.method === "POST" || req.method === "PUT") {
         sendJson(res, 200, await saveStorageProvider(await readJsonBody(req)));
+        return true;
+      }
+      throw new HttpError(405, "请求方法不支持");
+    }
+
+    if (segments[2] === "tokens") {
+      if (!segments[3]) {
+        if (req.method === "GET") {
+          sendJson(res, 200, await listAdminTokens());
+          return true;
+        }
+        if (req.method === "POST") {
+          sendJson(res, 201, await createAdminToken(await readJsonBody(req)));
+          return true;
+        }
+        throw new HttpError(405, "请求方法不支持");
+      }
+
+      if (segments[4]) {
+        throw new HttpError(404, "接口不存在");
+      }
+
+      const tokenId = normalizeAdminTokenId(segments[3]);
+      if (req.method === "PUT") {
+        sendJson(res, 200, await updateAdminToken(tokenId, await readJsonBody(req)));
+        return true;
+      }
+      if (req.method === "DELETE") {
+        await deleteAdminToken(tokenId);
+        sendJson(res, 200, { ok: true });
         return true;
       }
       throw new HttpError(405, "请求方法不支持");
