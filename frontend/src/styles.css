@@ -1670,7 +1670,7 @@ a {
 .admin-card {
   padding: 20px;
   border: 1px solid var(--surface-container);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   display: grid;
   gap: 16px;
   background: var(--surface-container-lowest);
@@ -1726,7 +1726,7 @@ a {
 .admin-stat-card {
   padding: 18px 20px;
   border: 1px solid var(--surface-container);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   display: grid;
   gap: 4px;
   align-content: start;
@@ -1859,7 +1859,7 @@ a {
 .admin-file-row {
   padding: 14px 16px;
   border: 1px solid var(--outline-variant);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
