@@ -209,14 +209,53 @@ function getVisitorIp(req) {
   return (ip || "unknown").slice(0, 64);
 }
 
-function requireAdmin(req) {
-  const expected = process.env.ADMIN_IMPORT_TOKEN;
+function getEnvAdminToken() {
+  const expected = String(process.env.ADMIN_IMPORT_TOKEN || "").trim();
   if (!expected || expected === "change-this-import-token") {
-    throw new HttpError(503, "后台导入密钥未配置");
+    return "";
   }
-  if (getAdminToken(req) !== expected) {
-    throw new HttpError(401, "后台导入密钥不正确");
+  return expected;
+}
+
+function hashAdminToken(token) {
+  return crypto.createHash("sha256").update(String(token || ""), "utf8").digest("hex");
+}
+
+function envAdminTokenMatches(token) {
+  const expected = getEnvAdminToken();
+  if (!expected || !token) {
+    return false;
   }
+  return timingSafeHexEqual(Buffer.from(token, "utf8").toString("hex"), Buffer.from(expected, "utf8").toString("hex"));
+}
+
+async function requireAdmin(req) {
+  const token = getAdminToken(req);
+  if (!token) {
+    throw new HttpError(401, "后台令牌不正确");
+  }
+
+  if (envAdminTokenMatches(token)) {
+    return { kind: "env", id: 0, name: "ADMIN_IMPORT_TOKEN" };
+  }
+
+  const tokenHash = hashAdminToken(token);
+  const [rows] = await getPool().execute(
+    `SELECT id, name, token_hash FROM admin_tokens WHERE is_active = 1`
+  );
+  const hit = rows.find((row) => timingSafeHexEqual(row.token_hash, tokenHash));
+  if (hit) {
+    await getPool().execute(
+      `UPDATE admin_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [hit.id]
+    );
+    return { kind: "db", id: Number(hit.id), name: hit.name };
+  }
+
+  if (!getEnvAdminToken() && !rows.length) {
+    throw new HttpError(503, "后台令牌未配置，请设置 ADMIN_IMPORT_TOKEN 或在令牌管理中创建令牌");
+  }
+  throw new HttpError(401, "后台令牌不正确");
 }
 
 function randomFileId(length = 12) {
@@ -1307,7 +1346,7 @@ async function handleApi(req, res, requestUrl) {
   }
 
   if (segments[1] === "admin") {
-    requireAdmin(req);
+    await requireAdmin(req);
 
     if (segments[2] === "import") {
       if (req.method !== "POST") {
