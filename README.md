@@ -46,14 +46,41 @@ mysql -u root -p < add_visitor_ip_stats.sql
 
 ## 管理后台
 
-访问 `http://127.0.0.1:5173/?admin=dashboard`（或生产站点的 `/admin`），输入 `ADMIN_IMPORT_TOKEN` 登录后可以：
+访问 `http://127.0.0.1:5173/?admin=dashboard`（或生产站点的 `/admin`），输入管理令牌登录后可以：
 
 - 查看文件总数、访问量、点击量、今日数据和近 14 天趋势图。
 - 管理分享文件：编辑标题、文件名、大小、说明、提取码、过期时间，启用/停用/删除。
 - 管理存储链接：新增、编辑、删除链接，查看每条链接的点击次数。
 - 查看最近 50 条访问/点击动态。
+- 管理多枚后台令牌（命名、启用/停用、删除、查看最近使用时间）。
 
-管理接口统一走 `/api/admin/*`（统计概览 `GET /api/admin/stats`、文件列表 `GET /api/admin/files`、文件详情/更新/删除 `GET|PUT|DELETE /api/admin/files/:fileId`、链接新增 `POST /api/admin/files/:fileId/links`、链接更新/删除 `PUT|DELETE /api/admin/links/:id`），需要在请求头带 `X-Admin-Token`。
+管理接口统一走 `/api/admin/*`（统计概览 `GET /api/admin/stats`、文件列表 `GET /api/admin/files`、文件详情/更新/删除 `GET|PUT|DELETE /api/admin/files/:fileId`、链接新增 `POST /api/admin/files/:fileId/links`、链接更新/删除 `PUT|DELETE /api/admin/links/:id`），需要在请求头带 `X-Admin-Token`（也接受 `Authorization: Bearer <token>`）。
+
+## 管理令牌
+
+后台令牌有两种来源，二者同时生效：
+
+1. **环境变量超级令牌**：`backend/.env` 里的 `ADMIN_IMPORT_TOKEN`。始终可用、不可删除，作为兜底（例如忘记其它令牌、或需要重建令牌表时）。修改后需重启后端。
+2. **数据库令牌**：表 `admin_tokens`，可在后台「令牌管理」里创建多枚，带名称、启用/停用、删除，并记录最近使用时间。
+
+- 库里只存 SHA-256 哈希（`token_hash`）和前缀（`token_prefix`，用于识别，不是凭证），明文只在创建时返回一次。
+- 校验时先用 `timingSafeEqual` 比对 env 令牌，再逐个比对启用中令牌的哈希；命中数据库令牌会刷新 `last_used_at`。
+- 停用或删除令牌后立即失效。
+
+首次在已有库上启用需要迁移：
+
+```powershell
+mysql -u root -p azurekiln_download_page < backend/migrations/add_admin_tokens.sql
+```
+
+令牌接口（均需 `X-Admin-Token`）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/admin/tokens` | 列表，返回 `{ tokens, envTokenEnabled }`，不含明文和哈希 |
+| POST | `/api/admin/tokens` | body `{ "name": "ci-bot" }`，返回 `{ token, item, message }`，`token` 仅此一次可见 |
+| PUT | `/api/admin/tokens/:id` | body `{ "name"?, "isActive"? }`，返回 `{ item }` |
+| DELETE | `/api/admin/tokens/:id` | 返回 `{ ok: true }` |
 
 ## 运行
 
