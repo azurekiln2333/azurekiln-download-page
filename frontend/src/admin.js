@@ -564,9 +564,10 @@ function bindAdminPageEvents(pageId) {
     bindTokensPageEvents();
     return;
   }
-  if (pageId === "overview" || pageId === "files") {
+  if (pageId === "files") {
     const fileList = document.getElementById("admin-file-list");
     fileList?.addEventListener("click", onFileListClick);
+    document.getElementById("admin-files-refresh")?.addEventListener("click", () => refreshData({ silent: true }));
   }
 }
 
@@ -664,21 +665,72 @@ function renderOverviewPage() {
 }
 
 /* ------------------------------------------------------------------ *
- * 页面：文件管理（pi-2 负责细化）
+ * 页面：文件管理
+ *
+ * 文件列表是 New API 风格表格（每行一个文件），行内直接放统计数据与操作，
+ * 表格底部不再接一条重复提示；编辑弹窗负责文件信息 / 存储链接 / IP 访客。
  * ------------------------------------------------------------------ */
 
 function renderFilesPage() {
+  const files = state.files;
+  const activeCount = files.filter((file) => file.isActive).length;
   return `
     <div class="admin-page" data-admin-page="files">
-      <section class="admin-card">
+      <section class="admin-card" data-admin-card="files">
         <div class="admin-card__head">
-          <h2>分享文件</h2>
-          <span class="admin-card__meta">${state.files.length} 个</span>
+          <div class="admin-card__title">
+            <h2>分享文件</h2>
+            <p>共 ${files.length} 个文件，${activeCount} 个启用中</p>
+          </div>
+          <div class="admin-card__actions">
+            <a class="secondary-button secondary-button--compact" href="/?admin=import">
+              <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+              <span>导入分享</span>
+            </a>
+            <button class="secondary-button secondary-button--compact" id="admin-files-refresh" type="button">
+              <span class="material-symbols-outlined" aria-hidden="true">sync</span>
+              <span>刷新</span>
+            </button>
+          </div>
         </div>
-        <div class="admin-file-list" id="admin-file-list">
-          ${state.files.map(renderFileRow).join("") || `<p class="empty-preview">还没有分享文件，先去导入一个吧。</p>`}
-        </div>
+        ${renderFileTable(files)}
       </section>
+    </div>
+  `;
+}
+
+function renderFileTable(files) {
+  if (!files.length) {
+    return `
+      <div class="admin-empty">
+        <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>
+        <p>还没有分享文件，先去导入一个吧。</p>
+        <a class="primary-button primary-button--compact" href="/?admin=import">
+          <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+          <span>导入分享</span>
+        </a>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="admin-table-wrap">
+      <table class="admin-table admin-table--files" id="admin-file-list">
+        <thead>
+          <tr>
+            <th scope="col">文件</th>
+            <th scope="col" class="admin-table__num">访问</th>
+            <th scope="col" class="admin-table__num">点击</th>
+            <th scope="col" class="admin-table__num">访客 IP</th>
+            <th scope="col" class="admin-table__num">链接</th>
+            <th scope="col">状态</th>
+            <th scope="col" class="admin-table__right">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${files.map(renderFileRow).join("")}
+        </tbody>
+      </table>
     </div>
   `;
 }
@@ -737,7 +789,7 @@ function renderTokensPage() {
 
 function renderTokenList() {
   if (state.tokensLoading) {
-    return `<p class="empty-preview"><span class="material-symbols-outlined spin" aria-hidden="true">progress_activity</span> 正在加载令牌...</p>`;
+    return `<p class="empty-preview admin-token-loading"><span class="material-symbols-outlined spin" aria-hidden="true">progress_activity</span> 正在加载令牌...</p>`;
   }
   if (state.tokensError) {
     return `
@@ -758,10 +810,11 @@ function renderTokenList() {
 
 function renderTokenRow(token) {
   const env = Boolean(token.isEnvToken);
+  const active = token.isActive !== false;
   const lastUsed = token.lastUsedLabel || (token.lastUsedAt ? formatDateTime(token.lastUsedAt) : "从未使用");
-  const created = token.createdAt ? formatDate(token.createdAt) : "随环境变量配置";
+  const created = token.createdAt ? formatDate(token.createdAt) : (env ? "随环境变量配置" : "未知日期");
   return `
-    <article class="admin-token-row ${token.isActive ? "" : "admin-token-row--inactive"}" data-token-row="${escapeHtml(token.id)}">
+    <article class="admin-token-row ${active ? "" : "admin-token-row--inactive"}" data-token-row="${escapeHtml(token.id)}">
       <div class="admin-token-row__icon">
         <span class="material-symbols-outlined" aria-hidden="true">${env ? "shield_lock" : "key"}</span>
       </div>
@@ -769,7 +822,7 @@ function renderTokenRow(token) {
         <div class="admin-token-row__title">
           <strong>${escapeHtml(token.name)}</strong>
           ${env ? `<span class="chip">环境变量</span>` : ""}
-          <span class="chip ${token.isActive ? "" : "chip--muted"}">${token.isActive ? "已启用" : "已停用"}</span>
+          <span class="chip ${active ? "" : "chip--muted"}">${active ? "已启用" : "已停用"}</span>
         </div>
         <code class="admin-token-row__prefix">${escapeHtml(token.tokenPrefix || "")}…</code>
         <small class="admin-token-row__meta">
@@ -787,7 +840,7 @@ function renderTokenRow(token) {
                 <span>重命名</span>
               </button>
               <button class="secondary-button secondary-button--compact" type="button" data-token-action="toggle" data-token-id="${escapeHtml(token.id)}">
-                <span>${token.isActive ? "停用" : "启用"}</span>
+                <span>${active ? "停用" : "启用"}</span>
               </button>
               <button class="secondary-button secondary-button--compact admin-danger-button" type="button" data-token-action="delete" data-token-id="${escapeHtml(token.id)}">
                 <span class="material-symbols-outlined" aria-hidden="true">delete</span>
@@ -818,10 +871,15 @@ function bindTokensPageEvents() {
     return;
   }
   dialog.addEventListener("click", onTokenDialogClick);
+  // form 在 dialog 内部，submit 会冒泡到 dialog；submit 事件 target 可能是 form，也可能是 dialog 本身
   dialog.addEventListener("submit", onTokenDialogSubmit);
   dialog.addEventListener("close", () => {
     editingTokenId = null;
     state.createdToken = "";
+    // 关闭时立即销毁一次明文，避免再次打开弹窗时被重绘/恢复
+    if (dialog.querySelector("#admin-token-secret")) {
+      dialog.innerHTML = "";
+    }
   });
 
   if (!state.tokens.length && !state.tokensLoading && !state.tokensError) {
@@ -855,23 +913,20 @@ function renderTokenListInPlace() {
     return;
   }
   // 只替换列表容器，避免重建侧栏与顶栏
+  // 注意：找不到容器的兼容分支要先删除旧内容再插入，否则会残留重复列表
   let slot = card.querySelector(".admin-token-slot");
   if (!slot) {
     slot = document.createElement("div");
     slot.className = "admin-token-slot";
-    const previous = card.querySelector(".admin-token-list, .empty-preview, .admin-token-error");
-    if (previous) {
-      previous.replaceWith(slot);
-    } else {
-      card.append(slot);
-    }
+    card.querySelectorAll(".admin-token-list, .empty-preview, .admin-token-error").forEach((node) => node.remove());
+    card.append(slot);
   }
   slot.innerHTML = renderTokenList();
 }
 
 async function onTokenListClick(event) {
   const button = event.target.closest("[data-token-action]");
-  if (!button) {
+  if (!button || button.disabled) {
     return;
   }
   const action = button.dataset.tokenAction;
@@ -910,7 +965,7 @@ async function onTokenListClick(event) {
     button.disabled = true;
     try {
       await adminApi(`/admin/tokens/${encodeURIComponent(token.id)}`, { method: "DELETE" });
-      state.tokens = state.tokens.filter((item) => item.id !== token.id);
+      state.tokens = removeToken(token.id);
       renderTokenListInPlace();
     } catch (error) {
       if (!handleAuthError(error)) {
@@ -928,16 +983,40 @@ function replaceToken(item) {
   state.tokens = state.tokens.map((token) => (token.id === item.id ? item : token));
 }
 
+function removeToken(id) {
+  return state.tokens.filter((token) => token.id !== id);
+}
+
+// 新建令牌后保持「env 只读条目在最前、且不重复、不重复插入」
+function prependCreatedToken(item) {
+  const envToken = state.tokens.find((token) => token.isEnvToken);
+  const rest = state.tokens.filter(
+    (token) => !token.isEnvToken && (!item || token.id !== item.id)
+  );
+  state.tokens = [envToken, item, ...rest].filter(Boolean);
+}
+
 function openTokenDialog(mode, token = null) {
   const dialog = document.getElementById("admin-token-dialog");
   if (!dialog) {
     return;
   }
+  if (mode === "rename" && !token) {
+    return;
+  }
   editingTokenId = mode === "rename" ? token.id : null;
   state.createdToken = "";
   dialog.innerHTML = renderTokenDialogContent(mode, token);
-  dialog.showModal();
-  dialog.querySelector("input[name='name']")?.focus();
+  if (typeof dialog.showModal === "function") {
+    if (!dialog.open) {
+      dialog.showModal();
+    }
+  } else {
+    dialog.setAttribute("open", "");
+  }
+  const input = dialog.querySelector("input[name='name']");
+  input?.focus();
+  input?.select();
 }
 
 function renderTokenDialogContent(mode, token) {
@@ -1005,15 +1084,24 @@ async function onTokenDialogClick(event) {
     return;
   }
   const dialog = event.target.closest("dialog");
+  if (!dialog) {
+    return;
+  }
   if (action === "close") {
     dialog.close();
     return;
   }
   if (action === "copy") {
     const button = event.target.closest("[data-token-dialog-action='copy']");
+    // 以 DOM 中的实际明文为准，避免 state 被清理后复制到空串
+    const value = dialog.querySelector("#admin-token-secret")?.textContent || state.createdToken;
+    if (!value) {
+      window.alert("令牌已不可见，请关闭弹窗后重新创建。");
+      return;
+    }
     try {
-      await copyToClipboard(state.createdToken);
-      const label = button.querySelector("span:last-child");
+      await copyToClipboard(value);
+      const label = button?.querySelector("span:last-child");
       if (label) {
         label.textContent = "已复制";
       }
@@ -1024,6 +1112,9 @@ async function onTokenDialogClick(event) {
 }
 
 async function copyToClipboard(value) {
+  if (!value) {
+    throw new Error("nothing to copy");
+  }
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
     return;
@@ -1043,24 +1134,39 @@ async function copyToClipboard(value) {
 }
 
 async function onTokenDialogSubmit(event) {
-  const form = event.target.closest("#admin-token-form");
-  if (!form) {
+  // submit 由 <dialog> 内的 <form> 发出：target 是 form，closest() 能命中；
+  // 若浏览器把 target 归一为 dialog，则向下查找 form。
+  const form =
+    event.target instanceof HTMLFormElement
+      ? event.target
+      : event.target.closest("#admin-token-form") || event.currentTarget?.querySelector("#admin-token-form");
+  if (!form || form.id !== "admin-token-form") {
     return;
   }
   event.preventDefault();
+  if (form.dataset.submitting === "true") {
+    return;
+  }
   const dialog = form.closest("dialog");
   const errorElement = form.querySelector("[data-token-error]");
   const submit = form.querySelector("button[type='submit']");
   const name = String(new FormData(form).get("name") || "").trim();
-  errorElement.hidden = true;
+  if (errorElement) {
+    errorElement.hidden = true;
+  }
 
   if (!name) {
-    errorElement.textContent = "令牌名称不能为空。";
-    errorElement.hidden = false;
+    if (errorElement) {
+      errorElement.textContent = "令牌名称不能为空。";
+      errorElement.hidden = false;
+    }
     return;
   }
 
-  submit.disabled = true;
+  form.dataset.submitting = "true";
+  if (submit) {
+    submit.disabled = true;
+  }
   try {
     if (form.dataset.tokenMode === "rename") {
       const { item } = await adminApi(`/admin/tokens/${encodeURIComponent(editingTokenId)}`, {
@@ -1068,24 +1174,32 @@ async function onTokenDialogSubmit(event) {
         body: { name }
       });
       replaceToken(item);
-      dialog.close();
       renderTokenListInPlace();
+      dialog?.close();
       return;
     }
 
     const payload = await adminApi("/admin/tokens", { method: "POST", body: { name } });
     state.createdToken = payload.token || "";
-    state.tokens = [state.tokens.find((token) => token.isEnvToken), payload.item, ...state.tokens.filter((token) => !token.isEnvToken)].filter(Boolean);
+    prependCreatedToken(payload.item);
     renderTokenListInPlace();
-    dialog.innerHTML = renderCreatedTokenPanel(state.createdToken);
+    if (dialog) {
+      dialog.innerHTML = renderCreatedTokenPanel(state.createdToken);
+      dialog.querySelector("[data-token-dialog-action='copy']")?.focus();
+    }
   } catch (error) {
     if (handleAuthError(error)) {
       return;
     }
-    errorElement.textContent = error.message;
-    errorElement.hidden = false;
+    if (errorElement) {
+      errorElement.textContent = error.message;
+      errorElement.hidden = false;
+    }
   } finally {
-    submit.disabled = false;
+    form.dataset.submitting = "false";
+    if (submit) {
+      submit.disabled = false;
+    }
   }
 }
 
@@ -1155,32 +1269,41 @@ function renderTrend(daily) {
 
 function renderFileRow(file) {
   return `
-    <article class="admin-file-row ${file.isActive ? "" : "admin-file-row--inactive"}">
-      <div class="admin-file-row__icon">${renderIcon(file.icon)}</div>
-      <div class="admin-file-row__main">
-        <h3 title="${escapeHtml(file.title)}">${escapeHtml(file.title)}</h3>
-        <small>${escapeHtml(file.id)} · ${file.storageCount} 条链接 · 更新于 ${formatDate(file.updatedAt)}</small>
-      </div>
-      <div class="admin-file-row__stats">
-        <span class="chip" title="页面访问量"><span class="material-symbols-outlined" aria-hidden="true">visibility</span>${file.viewCount}</span>
-        <span class="chip" title="链接点击量"><span class="material-symbols-outlined" aria-hidden="true">ads_click</span>${file.clickCount}</span>
-        <span class="chip" title="独立访客 IP 数"><span class="material-symbols-outlined" aria-hidden="true">person</span>${file.visitorCount ?? 0}</span>
-        <span class="chip ${file.isActive ? "" : "chip--muted"}">${file.isActive ? "已启用" : "已停用"}</span>
-      </div>
-      <div class="admin-file-row__actions">
-        <button class="secondary-button secondary-button--compact" type="button" data-edit-file="${escapeHtml(file.id)}">
-          <span class="material-symbols-outlined" aria-hidden="true">edit</span>
-          <span>编辑</span>
-        </button>
-        <button class="secondary-button secondary-button--compact" type="button" data-toggle-file="${escapeHtml(file.id)}">
-          <span>${file.isActive ? "停用" : "启用"}</span>
-        </button>
-        <button class="secondary-button secondary-button--compact admin-danger-button" type="button" data-delete-file="${escapeHtml(file.id)}">
-          <span class="material-symbols-outlined" aria-hidden="true">delete</span>
-          <span>删除</span>
-        </button>
-      </div>
-    </article>
+    <tr class="admin-table__row ${file.isActive ? "" : "admin-table__row--inactive"}">
+      <td>
+        <div class="admin-file-cell">
+          <span class="admin-file-cell__icon">${renderIcon(file.icon)}</span>
+          <div class="admin-file-cell__main">
+            <strong title="${escapeHtml(file.title)}">${escapeHtml(file.title)}</strong>
+            <small>${escapeHtml(file.id)} · 更新于 ${formatDate(file.updatedAt)}</small>
+          </div>
+        </div>
+      </td>
+      <td class="admin-table__num">${Number(file.viewCount || 0).toLocaleString("zh-CN")}</td>
+      <td class="admin-table__num">${Number(file.clickCount || 0).toLocaleString("zh-CN")}</td>
+      <td class="admin-table__num">${Number(file.visitorCount || 0).toLocaleString("zh-CN")}</td>
+      <td class="admin-table__num">${Number(file.storageCount || 0).toLocaleString("zh-CN")}</td>
+      <td>
+        <span class="admin-status ${file.isActive ? "admin-status--on" : "admin-status--off"}">
+          ${file.isActive ? "已启用" : "已停用"}
+        </span>
+      </td>
+      <td class="admin-table__right">
+        <div class="admin-file-actions">
+          <button class="secondary-button secondary-button--compact" type="button" data-edit-file="${escapeHtml(file.id)}">
+            <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+            <span>编辑</span>
+          </button>
+          <button class="secondary-button secondary-button--compact" type="button" data-toggle-file="${escapeHtml(file.id)}">
+            <span>${file.isActive ? "停用" : "启用"}</span>
+          </button>
+          <button class="secondary-button secondary-button--compact admin-danger-button" type="button" data-delete-file="${escapeHtml(file.id)}">
+            <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+            <span>删除</span>
+          </button>
+        </div>
+      </td>
+    </tr>
   `;
 }
 

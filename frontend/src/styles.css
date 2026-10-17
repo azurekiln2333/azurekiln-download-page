@@ -27,6 +27,7 @@
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) * 1.5);
   --radius-full: 999px;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --container-max: 1200px;
   --margin-desktop: 64px;
   --margin-mobile: 20px;
@@ -1998,85 +1999,133 @@ a {
   font-weight: 600;
 }
 
-.admin-file-list {
-  display: grid;
-  gap: 12px;
+/* 文件表格单元格 */
+.admin-table__num {
+  text-align: right;
+  color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.admin-file-row {
-  padding: 14px 16px;
-  border: 1px solid var(--outline-variant);
-  border-radius: var(--radius);
+.admin-table__row--inactive {
+  opacity: 0.58;
+}
+
+.admin-file-cell {
+  min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  background: var(--surface-container-lowest);
+  gap: 10px;
 }
 
-.admin-file-row--inactive {
-  opacity: 0.62;
-}
-
-.admin-file-row__icon {
-  width: 40px;
-  height: 40px;
+.admin-file-cell__icon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
   border-radius: var(--radius-sm);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
   background: rgba(0, 88, 188, 0.06);
   color: var(--primary);
 }
 
-.admin-file-row__icon img {
-  width: 26px;
-  height: 26px;
+.admin-file-cell__icon img {
+  width: 22px;
+  height: 22px;
   object-fit: contain;
 }
 
-.admin-file-row__icon .material-symbols-outlined {
-  font-size: 22px;
+.admin-file-cell__icon .material-symbols-outlined {
+  font-size: 20px;
 }
 
-.admin-file-row__main {
-  flex: 1;
-  min-width: 180px;
+.admin-file-cell__main {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
 }
 
-.admin-file-row__main h3 {
-  margin: 0 0 2px;
+.admin-file-cell__main strong {
+  max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--on-surface);
-  font-size: 16px;
-  line-height: 22px;
-  font-weight: 700;
-}
-
-.admin-file-row__main small {
-  color: var(--outline);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
   font-weight: 600;
 }
 
-.admin-file-row__stats {
-  display: flex;
+.admin-file-cell__main small {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--outline);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+}
+
+.admin-file-actions {
+  display: inline-flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
-.chip--muted {
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-status--on {
+  background: rgba(0, 88, 188, 0.1);
+  color: var(--primary);
+}
+
+.admin-status--off {
+  background: var(--surface-container);
   color: var(--outline);
 }
 
-.admin-file-row__actions {
+.admin-card__actions {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.admin-empty {
+  padding: 36px 20px;
+  border: 1px dashed var(--outline-variant);
+  border-radius: var(--radius);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  background: var(--surface-container-low);
+  color: var(--outline);
+}
+
+.admin-empty > .material-symbols-outlined {
+  font-size: 32px;
+  color: var(--primary);
+}
+
+.admin-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
 }
 
 .admin-danger-button {
@@ -2086,69 +2135,6 @@ a {
 .admin-danger-button:hover {
   background: var(--error-container);
   color: var(--error);
-}
-
-.admin-recent {
-  display: grid;
-  gap: 8px;
-}
-
-.admin-recent-row {
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface-container-low);
-}
-
-.admin-recent-row__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  background: rgba(0, 88, 188, 0.08);
-  color: var(--primary);
-}
-
-.admin-recent-row__icon .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.admin-recent-row__icon--click {
-  background: var(--primary-container);
-  color: var(--on-primary);
-}
-
-.admin-recent-row__text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--on-surface-variant);
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 600;
-}
-
-.admin-recent-row__text strong {
-  color: var(--on-surface);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.admin-recent-row time {
-  flex: 0 0 auto;
-  color: var(--outline);
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .admin-dialog__body {
@@ -2404,7 +2390,7 @@ a {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .admin-stats {
+  .admin-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2509,17 +2495,17 @@ a {
     text-align: center;
   }
 
-  .admin-stats {
+  .admin-stat-grid {
     grid-template-columns: 1fr;
   }
 
-  .admin-file-row__actions {
-    width: 100%;
+  .admin-card__head {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .admin-file-row__actions .secondary-button {
-    flex: 1;
-    justify-content: center;
+  .admin-file-actions {
+    justify-content: flex-start;
   }
 
   .admin-dialog__body {
@@ -2550,12 +2536,23 @@ a {
 
 .admin-card__hint code,
 .admin-token-row__prefix {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace);
+  font-family: var(--font-mono);
 }
 
 .admin-token-list {
   display: grid;
   gap: 10px;
+}
+
+.admin-token-slot {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-token-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .admin-token-row {
@@ -2650,6 +2647,23 @@ a {
 
 .admin-token-dialog {
   width: min(520px, calc(100vw - 32px));
+  border-radius: var(--radius-md);
+}
+
+/* 弹窗底部按钮不应被 .primary-button 的 width:100% 拉伸 */
+.admin-token-dialog .import-actions .primary-button,
+.admin-token-dialog .import-actions .secondary-button {
+  width: auto;
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* 与其它页面一致：弹窗内输入框/错误块统一使用 0.5rem 档圆角 */
+.admin-token-dialog .field input,
+.admin-token-dialog .form-error {
+  border-radius: var(--radius-md);
 }
 
 .admin-token-form {
@@ -2660,7 +2674,6 @@ a {
 .admin-token-form .import-actions {
   gap: 8px;
 }
-
 .admin-token-secret {
   padding: 12px 14px;
   border: 1px solid var(--outline-variant);
@@ -2676,7 +2689,7 @@ a {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--on-surface);
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace);
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 19px;
   font-weight: 600;
