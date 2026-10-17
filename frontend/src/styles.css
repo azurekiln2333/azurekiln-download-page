@@ -409,6 +409,15 @@ a {
   line-height: 20px;
 }
 
+.primary-button--compact {
+  width: auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 14px;
+  line-height: 20px;
+  border-radius: var(--radius-md);
+}
+
 .secondary-button:hover {
   background: var(--surface-container-highest);
   color: var(--primary);
@@ -2377,5 +2386,170 @@ a {
 
   .admin-card {
     padding: 16px;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 令牌管理页
+ * ------------------------------------------------------------------ */
+
+.admin-card__hint {
+  margin: -6px 0 0;
+  color: var(--outline);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.admin-card__hint code,
+.admin-token-row__prefix {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace);
+}
+
+.admin-token-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-token-row {
+  padding: 14px 16px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  background: var(--surface-container-lowest);
+}
+
+.admin-token-row--inactive {
+  opacity: 0.62;
+}
+
+.admin-token-row__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: rgba(0, 88, 188, 0.06);
+  color: var(--primary);
+}
+
+.admin-token-row__icon .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.admin-token-row__main {
+  flex: 1;
+  min-width: 200px;
+  display: grid;
+  gap: 4px;
+}
+
+.admin-token-row__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-token-row__title strong {
+  color: var(--on-surface);
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 700;
+}
+
+.admin-token-row__prefix {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.admin-token-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--outline);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.admin-token-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-token-row__note {
+  color: var(--outline);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+.admin-token-error {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.admin-token-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.admin-token-form {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-token-form .import-actions {
+  gap: 8px;
+}
+
+.admin-token-secret {
+  padding: 12px 14px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 88, 188, 0.06);
+}
+
+.admin-token-secret code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--on-surface);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace);
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 600;
+}
+
+.admin-token-secret__note {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .admin-token-row__actions {
+    width: 100%;
+  }
+
+  .admin-token-row__actions .secondary-button {
+    flex: 1;
+    justify-content: center;
   }
 }

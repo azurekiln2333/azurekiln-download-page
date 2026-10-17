@@ -6,7 +6,7 @@
  *   - renderOverviewPage()  概览页（统计卡片、趋势、最近动态）—— pi-2 负责填充
  *   - renderFilesPage()     文件管理页（文件列表、编辑弹窗）—— pi-2 负责填充
  *   - renderActivityPage()  访问动态页（访客 IP / 访问日志）—— pi-2 负责填充
- *   - renderTokensPage()    令牌管理页 —— pi-4 负责填充（当前为占位）
+ *   - renderTokensPage()    令牌管理页（列表 / 新建 / 重命名 / 启停 / 删除）
  *
  * 新增页面：在 ADMIN_PAGES 里加一项，并实现对应的 render<Name>Page() 返回 HTML 字符串，
  * 然后按需在 renderAdminPage() 的绑定点注册事件。
@@ -33,10 +33,16 @@ const state = {
   page: "overview",
   sidebarCollapsed: readSidebarCollapsed(),
   accountMenuOpen: false,
-  loaded: false
+  loaded: false,
+  tokens: [],
+  envTokenEnabled: false,
+  tokensLoading: false,
+  tokensError: "",
+  createdToken: ""
 };
 let editingFile = null;
 let editingVisitors = [];
+let editingTokenId = null;
 let routerBound = false;
 let outsideClickBound = false;
 
@@ -554,6 +560,10 @@ function renderAdminPageContent(pageId) {
 }
 
 function bindAdminPageEvents(pageId) {
+  if (pageId === "tokens") {
+    bindTokensPageEvents();
+    return;
+  }
   if (pageId === "overview" || pageId === "files") {
     const fileList = document.getElementById("admin-file-list");
     fileList?.addEventListener("click", onFileListClick);
@@ -654,7 +664,14 @@ function renderActivityPage() {
 }
 
 /* ------------------------------------------------------------------ *
- * 页面：令牌管理（pi-4 负责填充）
+ * 页面：令牌管理
+ *
+ * 数据来自 /api/admin/tokens（见 .trellis/tasks/10-18-admin-tokens-api/prd.md）：
+ *   GET    列表 { tokens: TokenItem[], envTokenEnabled }
+ *   POST   { name } → { token, item }，token 明文仅此一次
+ *   PUT    { name?, isActive? } → { item }
+ *   DELETE → { ok }
+ * 列表首项可能是 isEnvToken 的只读环境变量超级令牌。
  * ------------------------------------------------------------------ */
 
 function renderTokensPage() {
@@ -662,12 +679,367 @@ function renderTokensPage() {
     <div class="admin-page" data-admin-page="tokens">
       <section class="admin-card">
         <div class="admin-card__head">
-          <h2>令牌管理</h2>
+          <h2>管理令牌</h2>
+          <button class="primary-button primary-button--compact" id="admin-token-create" type="button">
+            <span class="material-symbols-outlined" aria-hidden="true">add</span>
+            <span>新建令牌</span>
+          </button>
         </div>
-        <p class="empty-preview">令牌管理即将上线，届时可在此创建、停用与删除管理令牌。</p>
+        <p class="admin-card__hint">令牌用于脚本或第三方工具调用 <code>/api/admin/*</code>；明文只在创建时显示一次。</p>
+        ${renderTokenList()}
       </section>
+
+      <dialog class="import-dialog admin-token-dialog" id="admin-token-dialog"></dialog>
     </div>
   `;
+}
+
+function renderTokenList() {
+  if (state.tokensLoading) {
+    return `<p class="empty-preview"><span class="material-symbols-outlined spin" aria-hidden="true">progress_activity</span> 正在加载令牌...</p>`;
+  }
+  if (state.tokensError) {
+    return `
+      <div class="admin-token-error">
+        <p class="form-error" role="alert">${escapeHtml(state.tokensError)}</p>
+        <button class="secondary-button secondary-button--compact" type="button" data-token-action="reload">
+          <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+          <span>重试</span>
+        </button>
+      </div>
+    `;
+  }
+  if (!state.tokens.length) {
+    return `<p class="empty-preview">还没有可管理的令牌，点击「新建令牌」生成一个。</p>`;
+  }
+  return `<div class="admin-token-list">${state.tokens.map(renderTokenRow).join("")}</div>`;
+}
+
+function renderTokenRow(token) {
+  const env = Boolean(token.isEnvToken);
+  const lastUsed = token.lastUsedLabel || (token.lastUsedAt ? formatDateTime(token.lastUsedAt) : "从未使用");
+  const created = token.createdAt ? formatDate(token.createdAt) : "随环境变量配置";
+  return `
+    <article class="admin-token-row ${token.isActive ? "" : "admin-token-row--inactive"}" data-token-row="${escapeHtml(token.id)}">
+      <div class="admin-token-row__icon">
+        <span class="material-symbols-outlined" aria-hidden="true">${env ? "shield_lock" : "key"}</span>
+      </div>
+      <div class="admin-token-row__main">
+        <div class="admin-token-row__title">
+          <strong>${escapeHtml(token.name)}</strong>
+          ${env ? `<span class="chip">环境变量</span>` : ""}
+          <span class="chip ${token.isActive ? "" : "chip--muted"}">${token.isActive ? "已启用" : "已停用"}</span>
+        </div>
+        <code class="admin-token-row__prefix">${escapeHtml(token.tokenPrefix || "")}…</code>
+        <small class="admin-token-row__meta">
+          <span>创建于 ${escapeHtml(created)}</span>
+          <span>最近使用 ${escapeHtml(lastUsed)}</span>
+        </small>
+      </div>
+      <div class="admin-token-row__actions">
+        ${
+          env
+            ? `<span class="admin-token-row__note">只读</span>`
+            : `
+              <button class="secondary-button secondary-button--compact" type="button" data-token-action="rename" data-token-id="${escapeHtml(token.id)}">
+                <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                <span>重命名</span>
+              </button>
+              <button class="secondary-button secondary-button--compact" type="button" data-token-action="toggle" data-token-id="${escapeHtml(token.id)}">
+                <span>${token.isActive ? "停用" : "启用"}</span>
+              </button>
+              <button class="secondary-button secondary-button--compact admin-danger-button" type="button" data-token-action="delete" data-token-id="${escapeHtml(token.id)}">
+                <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                <span>删除</span>
+              </button>
+            `
+        }
+      </div>
+    </article>
+  `;
+}
+
+function bindTokensPageEvents() {
+  document.getElementById("admin-token-create")?.addEventListener("click", () => openTokenDialog("create"));
+
+  document.querySelector(".admin-token-list")?.addEventListener("click", onTokenListClick);
+  document.querySelector('[data-token-action="reload"]')?.addEventListener("click", () => loadAdminTokens());
+
+  const dialog = document.getElementById("admin-token-dialog");
+  if (!dialog) {
+    return;
+  }
+  dialog.addEventListener("click", onTokenDialogClick);
+  dialog.addEventListener("submit", onTokenDialogSubmit);
+  dialog.addEventListener("close", () => {
+    editingTokenId = null;
+    state.createdToken = "";
+  });
+
+  if (!state.tokens.length && !state.tokensLoading && !state.tokensError) {
+    loadAdminTokens();
+  }
+}
+
+async function loadAdminTokens() {
+  state.tokensLoading = true;
+  state.tokensError = "";
+  renderTokenListInPlace();
+  try {
+    const payload = await adminApi("/admin/tokens");
+    state.tokens = payload.tokens || [];
+    state.envTokenEnabled = Boolean(payload.envTokenEnabled);
+  } catch (error) {
+    if (handleAuthError(error)) {
+      return;
+    }
+    state.tokens = [];
+    state.tokensError = error.message;
+  } finally {
+    state.tokensLoading = false;
+    renderTokenListInPlace();
+  }
+}
+
+function renderTokenListInPlace() {
+  const list = document.querySelector("[data-admin-page='tokens'] .admin-card");
+  if (!list) {
+    return;
+  }
+  // 只替换列表容器，避免重建侧栏与顶栏
+  let container = document.getElementById("admin-token-list-slot");
+  if (!container) {
+    const old = list.querySelector(".admin-token-list, .empty-preview, .admin-token-error");
+    if (!old) {
+      return;
+    }
+    container = document.createElement("div");
+    container.id = "admin-token-list-slot";
+    old.replaceWith(container);
+  }
+  container.innerHTML = renderTokenList();
+  container.querySelector('[data-token-action="reload"]')?.addEventListener("click", () => loadAdminTokens());
+  container.querySelector(".admin-token-list")?.addEventListener("click", onTokenListClick);
+}
+
+async function onTokenListClick(event) {
+  const button = event.target.closest("[data-token-action]");
+  if (!button) {
+    return;
+  }
+  const action = button.dataset.tokenAction;
+  const token = state.tokens.find((item) => String(item.id) === button.dataset.tokenId);
+  if (!token) {
+    return;
+  }
+
+  if (action === "rename") {
+    openTokenDialog("rename", token);
+    return;
+  }
+
+  if (action === "toggle") {
+    button.disabled = true;
+    try {
+      const { item } = await adminApi(`/admin/tokens/${encodeURIComponent(token.id)}`, {
+        method: "PUT",
+        body: { isActive: !token.isActive }
+      });
+      replaceToken(item);
+      renderTokenListInPlace();
+    } catch (error) {
+      if (!handleAuthError(error)) {
+        window.alert(error.message);
+      }
+      button.disabled = false;
+    }
+    return;
+  }
+
+  if (action === "delete") {
+    if (!window.confirm(`确定删除令牌「${token.name}」？使用该令牌的脚本会立即失效。`)) {
+      return;
+    }
+    button.disabled = true;
+    try {
+      await adminApi(`/admin/tokens/${encodeURIComponent(token.id)}`, { method: "DELETE" });
+      state.tokens = state.tokens.filter((item) => item.id !== token.id);
+      renderTokenListInPlace();
+    } catch (error) {
+      if (!handleAuthError(error)) {
+        window.alert(error.message);
+      }
+      button.disabled = false;
+    }
+  }
+}
+
+function replaceToken(item) {
+  if (!item) {
+    return;
+  }
+  state.tokens = state.tokens.map((token) => (token.id === item.id ? item : token));
+}
+
+function openTokenDialog(mode, token = null) {
+  const dialog = document.getElementById("admin-token-dialog");
+  if (!dialog) {
+    return;
+  }
+  editingTokenId = mode === "rename" ? token.id : null;
+  state.createdToken = "";
+  dialog.innerHTML = renderTokenDialogContent(mode, token);
+  dialog.showModal();
+  dialog.querySelector("input[name='name']")?.focus();
+}
+
+function renderTokenDialogContent(mode, token) {
+  const isRename = mode === "rename";
+  return `
+    <div class="admin-dialog__body">
+      <div class="import-dialog__header">
+        <div>
+          <h2>${isRename ? "重命名令牌" : "新建管理令牌"}</h2>
+          <p>${isRename ? `当前前缀 ${escapeHtml(token.tokenPrefix || "")}…` : "给令牌起一个便于识别的名字，例如 ci-bot 或 监控脚本。"}</p>
+        </div>
+        <button class="icon-button" type="button" data-token-dialog-action="close" aria-label="关闭">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+
+      <form class="admin-token-form" id="admin-token-form" data-token-mode="${isRename ? "rename" : "create"}">
+        <label class="field">
+          <span>令牌名称</span>
+          <input name="name" type="text" required maxlength="128" autocomplete="off" value="${isRename ? escapeHtml(token.name) : ""}" placeholder="例如 ci-bot" />
+        </label>
+        <p class="form-error" data-token-error role="alert" hidden></p>
+        <div class="import-actions">
+          <button class="secondary-button" type="button" data-token-dialog-action="close">取消</button>
+          <button class="primary-button" type="submit">
+            <span class="material-symbols-outlined" aria-hidden="true">${isRename ? "save" : "key"}</span>
+            <span>${isRename ? "保存名称" : "创建令牌"}</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function renderCreatedTokenPanel(token) {
+  return `
+    <div class="admin-dialog__body">
+      <div class="import-dialog__header">
+        <div>
+          <h2>令牌已创建</h2>
+          <p>明文只显示这一次，关闭后无法再次查看。</p>
+        </div>
+        <button class="icon-button" type="button" data-token-dialog-action="close" aria-label="关闭">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+      <div class="admin-token-secret">
+        <code id="admin-token-secret">${escapeHtml(token)}</code>
+        <button class="secondary-button secondary-button--compact" type="button" data-token-dialog-action="copy">
+          <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
+          <span>复制</span>
+        </button>
+      </div>
+      <p class="admin-token-secret__note">请把令牌发给需要使用它的脚本，并妥善保管。</p>
+      <div class="import-actions">
+        <button class="primary-button" type="button" data-token-dialog-action="close">我已保存</button>
+      </div>
+    </div>
+  `;
+}
+
+async function onTokenDialogClick(event) {
+  const action = event.target.closest("[data-token-dialog-action]")?.dataset.tokenDialogAction;
+  if (!action) {
+    return;
+  }
+  const dialog = event.target.closest("dialog");
+  if (action === "close") {
+    dialog.close();
+    return;
+  }
+  if (action === "copy") {
+    const button = event.target.closest("[data-token-dialog-action='copy']");
+    try {
+      await copyToClipboard(state.createdToken);
+      const label = button.querySelector("span:last-child");
+      if (label) {
+        label.textContent = "已复制";
+      }
+    } catch {
+      window.alert("复制失败，请手动选择令牌文本复制。");
+    }
+  }
+}
+
+async function copyToClipboard(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  const ok = document.execCommand("copy");
+  textarea.remove();
+  if (!ok) {
+    throw new Error("copy failed");
+  }
+}
+
+async function onTokenDialogSubmit(event) {
+  const form = event.target.closest("#admin-token-form");
+  if (!form) {
+    return;
+  }
+  event.preventDefault();
+  const dialog = form.closest("dialog");
+  const errorElement = form.querySelector("[data-token-error]");
+  const submit = form.querySelector("button[type='submit']");
+  const name = String(new FormData(form).get("name") || "").trim();
+  errorElement.hidden = true;
+
+  if (!name) {
+    errorElement.textContent = "令牌名称不能为空。";
+    errorElement.hidden = false;
+    return;
+  }
+
+  submit.disabled = true;
+  try {
+    if (form.dataset.tokenMode === "rename") {
+      const { item } = await adminApi(`/admin/tokens/${encodeURIComponent(editingTokenId)}`, {
+        method: "PUT",
+        body: { name }
+      });
+      replaceToken(item);
+      dialog.close();
+      renderTokenListInPlace();
+      return;
+    }
+
+    const payload = await adminApi("/admin/tokens", { method: "POST", body: { name } });
+    state.createdToken = payload.token || "";
+    state.tokens = [state.tokens.find((token) => token.isEnvToken), payload.item, ...state.tokens.filter((token) => !token.isEnvToken)].filter(Boolean);
+    renderTokenListInPlace();
+    dialog.innerHTML = renderCreatedTokenPanel(state.createdToken);
+  } catch (error) {
+    if (handleAuthError(error)) {
+      return;
+    }
+    errorElement.textContent = error.message;
+    errorElement.hidden = false;
+  } finally {
+    submit.disabled = false;
+  }
 }
 
 /* ------------------------------------------------------------------ *
