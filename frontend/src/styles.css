@@ -20,6 +20,13 @@
   --error-container: #ffdad6;
   --shadow-1: 0 4px 12px rgba(0, 0, 0, 0.05);
   --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.08);
+  /* Radius scale: 0.5rem base (MD3 default), derived steps only. */
+  --radius-xs: calc(var(--radius) * 0.5);
+  --radius-sm: calc(var(--radius) * 0.75);
+  --radius: 0.5rem;
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 1.5);
+  --radius-full: 999px;
   --container-max: 1200px;
   --margin-desktop: 64px;
   --margin-mobile: 20px;
