@@ -2678,7 +2678,7 @@ a {
 .admin-token-row {
   padding: 14px 16px;
   border: 1px solid var(--outline-variant);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -2768,6 +2768,27 @@ a {
 .admin-token-dialog {
   width: min(520px, calc(100vw - 32px));
   border-radius: var(--radius-md);
+}
+
+/* 令牌弹窗没有 .admin-dialog__header，需要自己补回内边距（与文件弹窗一致） */
+.admin-token-dialog .admin-dialog__body > .import-dialog__header,
+.admin-token-dialog .admin-dialog__body > .admin-token-form,
+.admin-token-dialog .admin-dialog__body > .admin-token-secret,
+.admin-token-dialog .admin-dialog__body > .admin-token-secret__note,
+.admin-token-dialog .admin-dialog__body > .import-actions {
+  margin-inline: 20px;
+}
+
+.admin-token-dialog .admin-dialog__body > .import-dialog__header {
+  padding-block: 18px 14px;
+}
+
+.admin-token-dialog .admin-dialog__body > .import-actions {
+  padding-bottom: 18px;
+}
+
+.admin-token-dialog .admin-dialog__body > .admin-token-secret__note {
+  margin-block: 12px 0;
 }
 
 /* 弹窗底部按钮不应被 .primary-button 的 width:100% 拉伸 */

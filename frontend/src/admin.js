@@ -769,8 +769,8 @@ function renderActivityPage() {
       <section class="admin-card" data-admin-card="activity">
         <div class="admin-card__head">
           <div class="admin-card__title">
-            <h2>访问动态</h2>
-            <p>最近 ${recent.length} 条记录 · ${viewCount} 次访问 · ${clickCount} 次点击</p>
+            <h2>最近 ${recent.length} 条记录</h2>
+            <p>${viewCount} 次访问 · ${clickCount} 次点击</p>
           </div>
           <div class="admin-segment" role="tablist" aria-label="按事件筛选">
             ${renderActivityFilter("all", "全部", recent.length, filter)}
