@@ -568,6 +568,21 @@ function bindAdminPageEvents(pageId) {
     const fileList = document.getElementById("admin-file-list");
     fileList?.addEventListener("click", onFileListClick);
     document.getElementById("admin-files-refresh")?.addEventListener("click", () => refreshData({ silent: true }));
+    return;
+  }
+  if (pageId === "activity") {
+    document.querySelector(".admin-segment")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-activity-filter]");
+      if (!button) {
+        return;
+      }
+      const value = button.dataset.activityFilter;
+      const nextHash = value === "all" ? "#activity" : `#activity?filter=${value}`;
+      if (window.location.hash === nextHash) {
+        return;
+      }
+      window.location.hash = nextHash;
+    });
   }
 }
 
@@ -736,24 +751,52 @@ function renderFileTable(files) {
 }
 
 /* ------------------------------------------------------------------ *
- * 页面：访问动态（pi-2 负责细化）
+ * 页面：访问动态
+ *
+ * 后端 /admin/stats 的 recent 最多返回 50 条，这里直接渲染全部；
+ * 事件类型作为筛选项，避免出现「标题 + 计数 + 另一块标题」的重复堆叠。
  * ------------------------------------------------------------------ */
 
 function renderActivityPage() {
   const recent = state.stats?.recent || [];
+  const clickCount = recent.filter((entry) => entry.event === "click").length;
+  const viewCount = recent.length - clickCount;
+  const filter = activityFilter();
+  const visible = filter === "all" ? recent : recent.filter((entry) => entry.event === filter);
+
   return `
     <div class="admin-page" data-admin-page="activity">
-      <section class="admin-card">
+      <section class="admin-card" data-admin-card="activity">
         <div class="admin-card__head">
-          <h2>最近动态</h2>
-          <span class="admin-card__meta">${recent.length} 条</span>
+          <div class="admin-card__title">
+            <h2>访问动态</h2>
+            <p>最近 ${recent.length} 条记录 · ${viewCount} 次访问 · ${clickCount} 次点击</p>
+          </div>
+          <div class="admin-segment" role="tablist" aria-label="按事件筛选">
+            ${renderActivityFilter("all", "全部", recent.length, filter)}
+            ${renderActivityFilter("view", "访问", viewCount, filter)}
+            ${renderActivityFilter("click", "点击", clickCount, filter)}
+          </div>
         </div>
-        <div class="admin-recent">
-          ${recent.map(renderRecentRow).join("") || `<p class="empty-preview">暂无访问记录。</p>`}
-        </div>
+        ${visible.length ? renderRecentTable(visible) : `<p class="empty-preview">暂无访问记录。</p>`}
       </section>
     </div>
   `;
+}
+
+function renderActivityFilter(value, label, count, active) {
+  return `
+    <button class="admin-segment__item ${value === active ? "admin-segment__item--active" : ""}" type="button" role="tab" aria-selected="${value === active}" data-activity-filter="${value}">
+      <span>${label}</span>
+      <span class="admin-segment__count">${count}</span>
+    </button>
+  `;
+}
+
+function activityFilter() {
+  const params = new URLSearchParams(window.location.hash.split("?")[1] || "");
+  const value = params.get("filter");
+  return value === "view" || value === "click" ? value : "all";
 }
 
 /* ------------------------------------------------------------------ *
