@@ -1,0 +1,13 @@
+# 本地构建调试用：docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+services:
+  app:
+    image: azurekiln-download-page:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: Dockerfile
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+  watchtower:
+    profiles: [auto-update]

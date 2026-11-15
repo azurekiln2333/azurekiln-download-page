@@ -1,0 +1,45 @@
+name: azurekiln-download-page
+
+services:
+  app:
+    image: "${APP_IMAGE:-ghcr.io/azurekiln2333/azurekiln-download-page:latest}"
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      # 容器内固定监听全部网卡，业务变量以 .env 为准
+      HOST: 0.0.0.0
+      PORT: "3001"
+    ports:
+      - "${APP_BIND_HOST:-127.0.0.1}:${APP_PORT:-3001}:3001"
+    # 桥接网络下经由 host-gateway 访问宿主机 MySQL（容器内 DB_HOST=host.docker.internal）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+      com.centurylinklabs.watchtower.scope: "${COMPOSE_PROJECT_NAME:-azurekiln-download-page}"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  watchtower:
+    image: nickfedor/watchtower:1.23.2
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_SCOPE: "${COMPOSE_PROJECT_NAME:-azurekiln-download-page}"
+      WATCHTOWER_POLL_INTERVAL: "${WATCHTOWER_POLL_INTERVAL:-600}"
+      WATCHTOWER_CLEANUP: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+      com.centurylinklabs.watchtower.scope: "${COMPOSE_PROJECT_NAME:-azurekiln-download-page}"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
