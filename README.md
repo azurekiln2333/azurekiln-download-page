@@ -115,3 +115,17 @@ npm run start
 ```
 
 然后访问 `http://127.0.0.1:3001`。
+
+## Docker 部署
+
+服务器部署、GHCR 镜像、Watchtower 自动更新与宿主机 MySQL 桥接配置见 [DEPLOY.md](DEPLOY.md)。
+
+简版：
+
+```bash
+git pull
+cp .env.example .env   # 填好 DB_*/ACCESS_TOKEN_SECRET 后保存
+docker compose up -d   # 应用 + watchtower 一起启动
+```
+
+打 `v*` tag 推送后 GitHub Actions 会自动构建镜像并推送到 GHCR（`ghcr.io/azurekiln2333/azurekiln-download-page:latest`），服务器 `git pull && docker compose up -d` 或等待 watchtower 轮询即可完成更新。
